@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Klondike</title>
+<style>
+html, body, canvas {
+    box-sizing: border-box;
+}
+
+html, body {
+    width: 100vw;
+    height: 100vh;
+    margin: 0;
+    padding: 0;
+}
+
+canvas {
+	display: block;
+}
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+let width;
+let height;
+
+resize();
+window.addEventListener("resize", resize);
+window.requestAnimationFrame(draw);
+
+function resize() {
+	width = document.body.clientWidth;
+	height = document.body.clientHeight;
+	canvas.width = width;
+	canvas.height = height;
+}
+
+function draw() {
+	ctx.fillStyle = 'rgb(0, 80, 0)';
+	ctx.fillRect(0, 0, width, height);
+}
+</script>
+</body>
+</html>
+

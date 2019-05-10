@@ -23,26 +23,95 @@ canvas {
 <body>
 <canvas id="canvas"></canvas>
 <script>
+/**
+ * Init
+ */
+
+const cards = [];
+['club', 'diamond', 'heart', 'spade'].forEach(suit => {
+	for (let i = 1; i <= 13; i++) {
+		cards.push(`${suit}_${i}`);
+	}
+});
+
+const image_names = ['back_red', 'card_base', ...cards];
+let image_queue = image_names.length;
+
+const images = {};
+image_names.forEach(name => {
+	images[name] = new Image();
+	images[name].src = `cards/${name}.png`;
+	images[name].addEventListener('load', () => --image_queue);
+	images[name].addEventListener('error', (er) => {
+		throw er;
+	});
+});
+
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 
 let width;
 let height;
+let card_width;
+let card_height;
+let card_spacing;
+
+let needs_redraw = true;
 
 resize();
 window.addEventListener("resize", resize);
 window.requestAnimationFrame(draw);
+
+/**
+ * Functions
+ */
 
 function resize() {
 	width = document.body.clientWidth;
 	height = document.body.clientHeight;
 	canvas.width = width;
 	canvas.height = height;
+
+	card_width = Math.round(width / 7 * 0.9);
+	card_height = Math.round(card_width * 1.45);
+	card_spacing = Math.round(card_width * 0.05);
+}
+
+function draw_card(image, x, y) {
+	return ctx.drawImage(image, x, y, card_width, card_height);
 }
 
 function draw() {
+	needs_redraw = false;
+
 	ctx.fillStyle = 'rgb(0, 80, 0)';
 	ctx.fillRect(0, 0, width, height);
+
+	if (image_queue) {
+		ctx.font = '50px sans-serif';
+		ctx.fillStyle = 'rgb(255, 255, 255)';
+		ctx.fillText('Loading...', 10, 60);
+		needs_redraw = true;
+	} else {
+		draw_card(images.back_red, card_spacing, card_spacing);
+
+		ctx.globalAlpha = 0.1;
+		for (let i = 1; i <= 4; i++) {
+			const x = card_spacing + (card_width + card_spacing) * (i + 2);
+			draw_card(images.card_base, x, card_spacing);
+		}
+		ctx.globalAlpha = 1;
+
+		for (let i = 1; i <= 7; i++) {
+			const x = card_spacing + (card_width + card_spacing) * (i - 1);
+			const y = (card_height + card_spacing * 2);
+			draw_card(images.back_red, x, y);
+		}
+	}
+
+	if (needs_redraw) {
+		window.requestAnimationFrame(draw);
+	}
 }
 </script>
 </body>

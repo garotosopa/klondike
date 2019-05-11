@@ -24,7 +24,7 @@ canvas {
 <canvas id="canvas"></canvas>
 <script>
 /**
- * Init
+ * Globals
  */
 
 const cards = [];
@@ -38,10 +38,14 @@ const image_names = ['back_red', 'card_base', ...cards];
 let image_queue = image_names.length;
 
 const images = {};
+const images_canvas = {};
 image_names.forEach(name => {
 	images[name] = new Image();
 	images[name].src = `cards/${name}.png`;
-	images[name].addEventListener('load', () => --image_queue);
+	images[name].addEventListener('load', () => {
+		--image_queue;
+		redraw_image(name);
+	});
 	images[name].addEventListener('error', (er) => {
 		throw er;
 	});
@@ -58,15 +62,26 @@ let card_spacing;
 
 let needs_redraw = true;
 
-resize();
-window.addEventListener("resize", resize);
+/**
+ * Init
+ */
+
+recalculate_sizes();
+needs_redraw = true;
 window.requestAnimationFrame(draw);
+
+window.addEventListener("resize", function () {
+	recalculate_sizes();
+	image_names.forEach(redraw_image);
+	needs_redraw = true;
+	window.requestAnimationFrame(draw);
+});
 
 /**
  * Functions
  */
 
-function resize() {
+function recalculate_sizes() {
 	width = document.body.clientWidth;
 	height = document.body.clientHeight;
 	canvas.width = width;
@@ -77,8 +92,16 @@ function resize() {
 	card_spacing = Math.round(card_width * 0.05);
 }
 
-function draw_card(image, x, y) {
-	return ctx.drawImage(image, x, y, card_width, card_height);
+function redraw_image(name) {
+	if (images_canvas[name] === undefined) {
+		images_canvas[name] = document.createElement('canvas');
+	}
+
+	images_canvas[name].width = card_width;
+	images_canvas[name].height = card_height;
+	const image_ctx = images_canvas[name].getContext('2d');
+	image_ctx.clearRect(0, 0, card_width, card_height);
+	image_ctx.drawImage(images[name], 0, 0, card_width, card_height);
 }
 
 function draw() {
@@ -93,19 +116,19 @@ function draw() {
 		ctx.fillText('Loading...', 10, 60);
 		needs_redraw = true;
 	} else {
-		draw_card(images.back_red, card_spacing, card_spacing);
+		ctx.drawImage(images_canvas.back_red, card_spacing, card_spacing);
 
 		ctx.globalAlpha = 0.1;
 		for (let i = 1; i <= 4; i++) {
 			const x = card_spacing + (card_width + card_spacing) * (i + 2);
-			draw_card(images.card_base, x, card_spacing);
+			ctx.drawImage(images_canvas.card_base, x, card_spacing);
 		}
 		ctx.globalAlpha = 1;
 
 		for (let i = 1; i <= 7; i++) {
 			const x = card_spacing + (card_width + card_spacing) * (i - 1);
 			const y = (card_height + card_spacing * 2);
-			draw_card(images.back_red, x, y);
+			ctx.drawImage(images_canvas.back_red, x, y);
 		}
 	}
 

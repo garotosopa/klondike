@@ -85,6 +85,16 @@ window.addEventListener("keydown", function (e) {
 	}
 });
 
+window.addEventListener("click", function (e) {
+	if (e.clientX >= start_x &&
+		e.clientX <= start_x + card_width &&
+		e.clientY >= card_spacing &&
+		e.clientY <= card_spacing + card_height
+	) {
+		pick_stock();
+	}
+});
+
 image_names.forEach(name => {
 	images[name] = new Image();
 	images[name].src = `cards/${name}.png`;
@@ -151,6 +161,20 @@ function new_game()
 
 	while (deck.length) {
 		stock.push(deck.pop());
+	}
+}
+
+function pick_stock() {
+	if (stock.length) {
+		waste.push(stock.pop());
+		waste[waste.length - 1].turnedup = true;
+		window.requestAnimationFrame(draw);
+	} else if (waste.length) {
+		while(waste.length) {
+			stock.push(waste.pop());
+			stock[stock.length - 1].turnedup = false;
+		}
+		window.requestAnimationFrame(draw);
 	}
 }
 

@@ -163,20 +163,20 @@ function recalculate_sizes() {
 	const factor_spacing = 0.1;
 	const factor_width = 0.69;
 	const factor_height = 1.45;
-	const factor_step_min = 0.1;
+	const factor_step_max = 0.165;
 
 	card_width = Math.round(width / 7 * (1 - factor_spacing));
 	card_height = Math.round(card_width * factor_height);
 	card_spacing = Math.round(card_width * (factor_spacing / 2));
-	card_step = Math.round(card_height * factor_step_min);
+	card_step = Math.round(card_height * factor_step_max);
 
-	const max_card_height = height / ((factor_step_min * 13) + factor_spacing + 2);
+	const max_card_height = height / (factor_step_max * 7 + 2);
 
 	if (card_height > max_card_height) {
 		card_height = Math.round(max_card_height);
 		card_width = Math.round(card_height * factor_width);
 		card_spacing = Math.round(card_width * (factor_spacing / 2));
-		card_step = Math.round(card_height * factor_step_min);
+		card_step = Math.round(card_height * factor_step_max);
 	}
 
 	start_x = Math.round((width - ((card_width + card_spacing) * 7)) / 2);

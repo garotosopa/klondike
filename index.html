@@ -40,20 +40,8 @@ const cards = [];
 
 const image_names = ['back_red', 'card_base', ...cards];
 let image_queue = image_names.length;
-
 const images = {};
 const images_canvas = {};
-image_names.forEach(name => {
-	images[name] = new Image();
-	images[name].src = `cards/${name}.png`;
-	images[name].addEventListener('load', () => {
-		--image_queue;
-		redraw_image(name);
-	});
-	images[name].addEventListener('error', (er) => {
-		throw er;
-	});
-});
 
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
@@ -65,28 +53,103 @@ let card_height;
 let card_spacing;
 let card_step;
 let start_x;
-let columns_y;
+let piles_y;
 
 let needs_redraw = true;
+
+const deck = [];
+const stock = [];
+const waste = [];
+const foundations = [[], [], [], []];
+const piles = [[], [], [], [], [], [], []];
 
 /**
  * Init
  */
 
 recalculate_sizes();
-needs_redraw = true;
-window.requestAnimationFrame(draw);
 
 window.addEventListener("resize", function () {
 	recalculate_sizes();
 	image_names.forEach(redraw_image);
 	needs_redraw = true;
-	window.requestAnimationFrame(draw);
+
+	if (!image_queue) {
+		window.requestAnimationFrame(draw);
+	}
+});
+
+window.addEventListener("keydown", function (e) {
+	if (e.altKey && e.code === "KeyN") {
+		new_game();
+		window.requestAnimationFrame(draw);
+	}
+});
+
+image_names.forEach(name => {
+	images[name] = new Image();
+	images[name].src = `cards/${name}.png`;
+	images[name].addEventListener('load', () => {
+		--image_queue;
+		redraw_image(name);
+
+		if (!image_queue) {
+			new_game();
+			window.requestAnimationFrame(draw);
+		}
+	});
+	images[name].addEventListener('error', (er) => {
+		throw er;
+	});
+});
+
+cards.forEach(name => {
+	deck.push({
+		name: name,
+		suit: name.split('_')[0],
+		number: name.split('_')[1],
+		turnedup: false,
+	});
 });
 
 /**
  * Functions
  */
+
+function new_game()
+{
+	while (stock.length) {
+		deck.push(stock.pop());
+	}
+
+	while (waste.length) {
+		deck.push(waste.pop());
+	}
+
+	for (let i = 0; i < piles.length; i++) {
+		while (piles[i].length) {
+			deck.push(piles[i].pop());
+		}
+	}
+
+	for (let i = 0; i < foundations.length; i++) {
+		while (foundations[i].length) {
+			deck.push(foundations[i].pop());
+		}
+	}
+
+	deck.forEach(card => card.turnedup = false);
+
+	for (let i = 0; i < piles.length; i++) {
+		for (let j = i; j < piles.length; j++) {
+			const r = Math.floor(Math.random() * deck.length);
+			const card = deck.splice(r, 1)[0];
+			piles[j].push(card);
+		}
+
+		piles[i][i].turnedup = true;
+	}
+}
 
 function recalculate_sizes() {
 	width = document.body.clientWidth;
@@ -114,7 +177,7 @@ function recalculate_sizes() {
 	}
 
 	start_x = Math.round((width - ((card_width + card_spacing) * 7)) / 2);
-	columns_y = card_height + card_spacing * 2;
+	piles_y = card_height + card_spacing * 2;
 }
 
 function redraw_image(name) {
@@ -130,25 +193,28 @@ function redraw_image(name) {
 }
 
 function draw() {
-	if (!image_queue) {
-		needs_redraw = false;
+	needs_redraw = false;
 
-		ctx.fillStyle = 'rgb(0, 80, 0)';
-		ctx.fillRect(0, 0, width, height);
+	ctx.fillStyle = 'rgb(0, 80, 0)';
+	ctx.fillRect(0, 0, width, height);
 
-		ctx.drawImage(images_canvas.back_red, start_x, card_spacing);
+	ctx.drawImage(images_canvas.back_red, start_x, card_spacing);
 
-		ctx.globalAlpha = 0.1;
-		for (let i = 1; i <= 4; i++) {
-			const x = start_x + (card_width + card_spacing) * (i + 2);
-			ctx.drawImage(images_canvas.card_base, x, card_spacing);
-		}
-		ctx.globalAlpha = 1;
+	ctx.globalAlpha = 0.1;
+	for (let i = 1; i <= 4; i++) {
+		const x = start_x + (card_width + card_spacing) * (i + 2);
+		ctx.drawImage(images_canvas.card_base, x, card_spacing);
+	}
+	ctx.globalAlpha = 1;
 
-		for (let i = 1; i <= 7; i++) {
-			const x = start_x + (card_width + card_spacing) * (i - 1);
-			ctx.drawImage(images_canvas.back_red, x, columns_y);
-			ctx.drawImage(images_canvas[cards[0]], x, columns_y + card_step);
+	for (let i = 0; i < piles.length; i++) {
+		const x = start_x + (card_width + card_spacing) * i;
+
+		for (let j = 0; j < piles[i].length; j++) {
+			// TODO: adjustable card_step
+			const y = piles_y + card_step * j;
+			const image_name = piles[i][j].turnedup ? piles[i][j].name : 'back_red';
+			ctx.drawImage(images_canvas[image_name], x, y);
 		}
 	}
 

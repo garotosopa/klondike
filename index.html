@@ -15,6 +15,10 @@ html, body {
     padding: 0;
 }
 
+body {
+	background-color: rgb(0, 80, 0);
+}
+
 canvas {
 	display: block;
 }
@@ -126,17 +130,12 @@ function redraw_image(name) {
 }
 
 function draw() {
-	needs_redraw = false;
+	if (!image_queue) {
+		needs_redraw = false;
 
-	ctx.fillStyle = 'rgb(0, 80, 0)';
-	ctx.fillRect(0, 0, width, height);
+		ctx.fillStyle = 'rgb(0, 80, 0)';
+		ctx.fillRect(0, 0, width, height);
 
-	if (image_queue) {
-		ctx.font = '50px sans-serif';
-		ctx.fillStyle = 'rgb(255, 255, 255)';
-		ctx.fillText('Loading...', 10, 60);
-		needs_redraw = true;
-	} else {
 		ctx.drawImage(images_canvas.back_red, start_x, card_spacing);
 
 		ctx.globalAlpha = 0.1;

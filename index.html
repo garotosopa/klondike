@@ -149,6 +149,10 @@ function new_game()
 
 		piles[i][i].turnedup = true;
 	}
+
+	while (deck.length) {
+		stock.push(deck.pop());
+	}
 }
 
 function recalculate_sizes() {

@@ -202,6 +202,10 @@ function draw() {
 
 	if (stock.length) {
 		ctx.drawImage(images_canvas.back_red, start_x, card_spacing);
+	} else {
+		ctx.globalAlpha = 0.1;
+		ctx.drawImage(images_canvas.card_base, start_x, card_spacing);
+		ctx.globalAlpha = 1;
 	}
 
 	if (waste.length) {

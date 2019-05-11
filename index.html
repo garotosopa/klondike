@@ -96,11 +96,7 @@ window.addEventListener("keydown", function (e) {
 });
 
 window.addEventListener("click", function (e) {
-	if (e.clientX >= x_stock &&
-		e.clientX <= x_stock + card_width &&
-		e.clientY >= y_stock &&
-		e.clientY <= y_stock + card_height
-	) {
+	if (clicked_inside(e, x_stock, card_width, y_stock, card_height)) {
 		pick_stock();
 	}
 });
@@ -186,6 +182,13 @@ function pick_stock() {
 		}
 		window.requestAnimationFrame(draw);
 	}
+}
+
+function clicked_inside(event, x, w, y, h) {
+	return event.clientX >= x &&
+	       event.clientX <= x + w &&
+	       event.clientY >= y &&
+	       event.clientY <= y + h;
 }
 
 function recalculate_sizes() {

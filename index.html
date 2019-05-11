@@ -59,6 +59,9 @@ let height;
 let card_width;
 let card_height;
 let card_spacing;
+let card_step;
+let start_x;
+let columns_y;
 
 let needs_redraw = true;
 
@@ -87,9 +90,27 @@ function recalculate_sizes() {
 	canvas.width = width;
 	canvas.height = height;
 
-	card_width = Math.round(width / 7 * 0.9);
-	card_height = Math.round(card_width * 1.45);
-	card_spacing = Math.round(card_width * 0.05);
+	const factor_spacing = 0.1;
+	const factor_width = 0.69;
+	const factor_height = 1.45;
+	const factor_step_min = 0.1;
+
+	card_width = Math.round(width / 7 * (1 - factor_spacing));
+	card_height = Math.round(card_width * factor_height);
+	card_spacing = Math.round(card_width * (factor_spacing / 2));
+	card_step = Math.round(card_height * factor_step_min);
+
+	const max_card_height = height / ((factor_step_min * 13) + factor_spacing + 2);
+
+	if (card_height > max_card_height) {
+		card_height = Math.round(max_card_height);
+		card_width = Math.round(card_height * factor_width);
+		card_spacing = Math.round(card_width * (factor_spacing / 2));
+		card_step = Math.round(card_height * factor_step_min);
+	}
+
+	start_x = Math.round((width - ((card_width + card_spacing) * 7)) / 2);
+	columns_y = card_height + card_spacing * 2;
 }
 
 function redraw_image(name) {
@@ -116,19 +137,19 @@ function draw() {
 		ctx.fillText('Loading...', 10, 60);
 		needs_redraw = true;
 	} else {
-		ctx.drawImage(images_canvas.back_red, card_spacing, card_spacing);
+		ctx.drawImage(images_canvas.back_red, start_x, card_spacing);
 
 		ctx.globalAlpha = 0.1;
 		for (let i = 1; i <= 4; i++) {
-			const x = card_spacing + (card_width + card_spacing) * (i + 2);
+			const x = start_x + (card_width + card_spacing) * (i + 2);
 			ctx.drawImage(images_canvas.card_base, x, card_spacing);
 		}
 		ctx.globalAlpha = 1;
 
 		for (let i = 1; i <= 7; i++) {
-			const x = card_spacing + (card_width + card_spacing) * (i - 1);
-			const y = (card_height + card_spacing * 2);
-			ctx.drawImage(images_canvas.back_red, x, y);
+			const x = start_x + (card_width + card_spacing) * (i - 1);
+			ctx.drawImage(images_canvas.back_red, x, columns_y);
+			ctx.drawImage(images_canvas[cards[0]], x, columns_y + card_step);
 		}
 	}
 

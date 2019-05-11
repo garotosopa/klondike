@@ -53,7 +53,6 @@ let card_height;
 let card_spacing;
 let card_step;
 let start_x;
-let piles_y;
 
 let needs_redraw = true;
 
@@ -181,7 +180,6 @@ function recalculate_sizes() {
 	}
 
 	start_x = Math.round((width - ((card_width + card_spacing) * 7)) / 2);
-	piles_y = card_height + card_spacing * 2;
 }
 
 function redraw_image(name) {
@@ -202,22 +200,39 @@ function draw() {
 	ctx.fillStyle = 'rgb(0, 80, 0)';
 	ctx.fillRect(0, 0, width, height);
 
-	ctx.drawImage(images_canvas.back_red, start_x, card_spacing);
-
-	ctx.globalAlpha = 0.1;
-	for (let i = 1; i <= 4; i++) {
-		const x = start_x + (card_width + card_spacing) * (i + 2);
-		ctx.drawImage(images_canvas.card_base, x, card_spacing);
+	if (stock.length) {
+		ctx.drawImage(images_canvas.back_red, start_x, card_spacing);
+	} else {
+		ctx.globalAlpha = 0.1;
+		ctx.drawImage(images_canvas.card_base, start_x, card_spacing);
+		ctx.globalAlpha = 1;
 	}
-	ctx.globalAlpha = 1;
+
+	if (waste.length) {
+		const card = waste[waste.length - 1];
+		ctx.drawImage(images_canvas[card.name], start_x + card_width + card_spacing, card_spacing);
+	}
+
+	for (let i = 0; i < foundations.length; i++) {
+		const x = start_x + (card_width + card_spacing) * (i + 3);
+
+		if (foundations[i].length) {
+			const card = foundations[foundations.length - 1];
+			ctx.drawImage(images_canvas[card.name], x, card_spacing);
+		} else {
+			ctx.globalAlpha = 0.1;
+			ctx.drawImage(images_canvas.card_base, x, card_spacing);
+			ctx.globalAlpha = 1;
+		}
+	}
 
 	for (let i = 0; i < piles.length; i++) {
 		const x = start_x + (card_width + card_spacing) * i;
 
 		for (let j = 0; j < piles[i].length; j++) {
-			// TODO: adjustable card_step
-			const y = piles_y + card_step * j;
-			const image_name = piles[i][j].turnedup ? piles[i][j].name : 'back_red';
+			const y = card_height + card_spacing * 2 + card_step * j;
+			const card = piles[i][j];
+			const image_name = card.turnedup ? card.name : 'back_red';
 			ctx.drawImage(images_canvas[image_name], x, y);
 		}
 	}

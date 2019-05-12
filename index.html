@@ -154,28 +154,28 @@ window.addEventListener("mouseup", function (e) {
 
 			if (p !== undefined) {
 				if (piles[p].length) {
-					let card;
-					let origin_list;
-
-					switch (dragging.what) {
-						case 'waste':
-							card = waste[waste.length - 1];
-							origin_list = waste;
-							break;
-						case 'pile':
-							card = piles[dragging.pile][dragging.step];
-							origin_list = piles[dragging.pile];
-							break;
-					}
-
 					const x = x_piles + (card_width + card_spacing) * p;
 					const y = y_piles + card_step * (piles[p].length - 1);
 					const table_card = piles[p][piles[p].length - 1];
 
-					if (clicked_inside(e, x, card_width, y, card_height)
-						&& can_drop_below(table_card, card)
-					) {
-						piles[p].push(origin_list.pop());
+					if (clicked_inside(e, x, card_width, y, card_height)) {
+						if (dragging.what === 'waste') {
+							const card = waste[waste.length - 1];
+							if (can_drop_below(table_card, card)) {
+								piles[p].push(waste.pop());
+							}
+						} else if (dragging.what === 'pile') {
+							if (can_drop_below(table_card, piles[dragging.pile][dragging.step])) {
+								const hand = piles[dragging.pile].splice(
+									dragging.step,
+									piles[dragging.pile].length - dragging.step
+								);
+
+								for (let i = 0; i < hand.length; i++) {
+									piles[p].push(hand[i]);
+								}
+							}
+						}
 					}
 				}
 			}
@@ -417,22 +417,22 @@ function draw() {
 		}
 	}
 
-	if (dragging.what) {
-		let card;
-		switch (dragging.what) {
-			case 'waste':
-				card = waste[waste.length - 1];
-				break;
-			case 'pile':
-				card = piles[dragging.pile][dragging.step];
-				break;
-		}
-
+	if (dragging.what === 'waste') {
+		const card = waste[waste.length - 1];
 		ctx.drawImage(
 			images_canvas[card.name],
 			dragging.x - dragging.x_offset,
 			dragging.y - dragging.y_offset
 		);
+	} else if (dragging.what === 'pile') {
+		for (let s = dragging.step; s < piles[dragging.pile].length; s++) {
+			const card = piles[dragging.pile][s];
+			ctx.drawImage(
+				images_canvas[card.name],
+				dragging.x - dragging.x_offset,
+				dragging.y - dragging.y_offset + card_step * (s - dragging.step)
+			);
+		}
 	}
 
 	if (needs_redraw) {

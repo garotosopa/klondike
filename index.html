@@ -120,37 +120,7 @@ window.addEventListener("mouseup", function (e) {
 	if (dragging.what) {
 		window.removeEventListener("mousemove", track_mouse);
 
-		if (e.clientY >= y_piles) {
-			const p = x_to_pile(e.clientX);
-
-			if (p !== undefined) {
-				if (piles[p].length) {
-					const x = x_piles + (card_width + card_spacing) * p;
-					const y = y_piles + card_step * (piles[p].length - 1);
-					const table_card = piles[p][piles[p].length - 1];
-
-					if (clicked_inside(e, x, card_width, y, card_height)) {
-						if (dragging.what === 'waste') {
-							const card = waste[waste.length - 1];
-							if (can_drop_below(table_card, card)) {
-								piles[p].push(waste.pop());
-							}
-						} else if (dragging.what === 'pile') {
-							if (can_drop_below(table_card, piles[dragging.pile][dragging.step])) {
-								const hand = piles[dragging.pile].splice(
-									dragging.step,
-									piles[dragging.pile].length - dragging.step
-								);
-
-								for (let i = 0; i < hand.length; i++) {
-									piles[p].push(hand[i]);
-								}
-							}
-						}
-					}
-				}
-			}
-		}
+		drop_into_pile(e);
 	}
 
 	dragging.what = null;
@@ -280,6 +250,45 @@ function drag_from_pile(event) {
 	return true;
 }
 
+function drop_into_pile(event) {
+	if (event.clientY < y_piles) {
+		return false;
+	}
+
+	const p = x_to_pile(event.clientX);
+
+	if (p === undefined) {
+		return false;
+	}
+
+	const x = x_piles + (card_width + card_spacing) * p;
+	const y = y_piles + card_step * (piles[p].length ? piles[p].length - 1 : 0);
+	const table_card = piles[p][piles[p].length - 1];
+
+	if (!clicked_inside(event, x, card_width, y, card_height)) {
+		return false;
+	}
+
+	if (dragging.what === 'waste') {
+		const card = waste[waste.length - 1];
+		if (can_drop_below(table_card, card)) {
+			piles[p].push(waste.pop());
+		}
+	} else if (dragging.what === 'pile') {
+		const card = piles[dragging.pile][dragging.step];
+		if (can_drop_below(table_card, card)) {
+			const hand = piles[dragging.pile].splice(
+				dragging.step,
+				piles[dragging.pile].length - dragging.step
+			);
+
+			for (let i = 0; i < hand.length; i++) {
+				piles[p].push(hand[i]);
+			}
+		}
+	}
+}
+
 function drag_from_waste(event) {
 	if (!waste.length || !clicked_inside(event, x_waste, card_width, y_waste, card_height)) {
 		return false;
@@ -320,10 +329,14 @@ function card_color(card)
 	}
 }
 
-function can_drop_below(card_table, card_hand)
+function can_drop_below(table_card, hand_card)
 {
-	return card_color(card_table) !== card_color(card_hand)
-	       && card_table.number === (card_hand.number + 1);
+	if (table_card === undefined) {
+		return hand_card.number === 13;
+	} else {
+		return card_color(table_card) !== card_color(hand_card)
+			   && table_card.number === (hand_card.number + 1);
+	}
 }
 
 function track_mouse(event) {

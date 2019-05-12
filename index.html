@@ -371,7 +371,7 @@ function card_color(card)
 
 function can_drop_below(table_card, hand_card)
 {
-	if (table_card === undefined) {
+	if (table_card === undefined || !table_card.turnedup) {
 		return hand_card.number === 13;
 	} else {
 		return card_color(table_card) !== card_color(hand_card)

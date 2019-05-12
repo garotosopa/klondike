@@ -56,6 +56,8 @@ let card_step;
 let dragging = {
 	active: false,
 	what: null,
+	x_offset: 0,
+	y_offset: 0,
 };
 
 let x_start;
@@ -110,6 +112,8 @@ window.addEventListener("mousedown", function (e) {
 	if (waste.length && clicked_inside(e, x_waste, card_width, y_waste, card_height)) {
 		dragging.active = true;
 		dragging.what = 'waste';
+		dragging.x_offset = e.clientX - x_waste;
+		dragging.y_offset = e.clientY - y_waste;
 	}
 
 	if (dragging.active) {
@@ -248,8 +252,6 @@ function card_color(card)
 
 function can_drop_below(card_table, card_hand)
 {
-	console.log('ct', card_color(card_table), 'ch', card_color(card_hand));
-	console.log('tn', card_table.number, 'hn', (card_hand.number + 1));
 	return card_color(card_table) !== card_color(card_hand)
 	       && card_table.number === (card_hand.number + 1);
 }
@@ -371,7 +373,11 @@ function draw() {
 			card = waste[waste.length - 1];
 		}
 
-		ctx.drawImage(images_canvas[card.name], dragging.x, dragging.y);
+		ctx.drawImage(
+			images_canvas[card.name],
+			dragging.x - dragging.x_offset,
+			dragging.y - dragging.y_offset
+		);
 	}
 
 	if (needs_redraw) {

@@ -104,22 +104,6 @@ window.addEventListener("keydown", function (e) {
 window.addEventListener("click", function (e) {
 	if (clicked_inside(e, x_stock, card_width, y_stock, card_height)) {
 		pick_stock();
-		return;
-	}
-
-	if (event.clientY >= y_piles) {
-		const p = x_to_pile(event.clientX);
-		if (p === undefined || !piles[p].length) {
-			return false;
-		}
-
-		const x = x_piles + (card_width + card_spacing) * p;
-		const y = y_piles + card_step * piles[p].length - 1;
-
-		if (clicked_inside(e, x, card_width, y, height)) {
-			const card = piles[p][piles[p].length - 1];
-			card.turnedup = true;
-		}
 	}
 });
 
@@ -301,6 +285,10 @@ function drop_into_pile(event) {
 			for (let i = 0; i < hand.length; i++) {
 				piles[p].push(hand[i]);
 			}
+
+			if (piles[dragging.pile].length) {
+				piles[dragging.pile][piles[dragging.pile].length - 1].turnedup = true;
+			}
 		}
 	}
 }
@@ -343,6 +331,9 @@ function drop_into_foundation(event) {
 		const card = piles[dragging.pile][dragging.step];
 		if (can_drop_on(table_card, card)) {
 			foundations[f].push(piles[dragging.pile].pop());
+			if (piles[dragging.pile].length) {
+				piles[dragging.pile][piles[dragging.pile].length - 1].turnedup = true;
+			}
 		}
 	}
 

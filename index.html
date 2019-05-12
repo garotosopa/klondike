@@ -53,7 +53,10 @@ let card_height;
 let card_spacing;
 let card_step;
 
-let dragging = false;
+let dragging = {
+	active: false,
+	what: null,
+};
 
 let x_start;
 let y_start;
@@ -105,21 +108,40 @@ window.addEventListener("click", function (e) {
 
 window.addEventListener("mousedown", function (e) {
 	if (waste.length && clicked_inside(e, x_waste, card_width, y_waste, card_height)) {
-		dragging = { what: 'waste' };
+		dragging.active = true;
+		dragging.what = 'waste';
 	}
 
-	if (dragging) {
+	if (dragging.active) {
 		track_mouse(e);
 		window.addEventListener("mousemove", track_mouse);
 	}
 });
 
 window.addEventListener("mouseup", function (e) {
-	if (dragging) {
+	if (dragging.active) {
 		window.removeEventListener("mousemove", track_mouse);
+
+		if (e.clientY >= y_piles) {
+			const p = Math.floor((e.clientX - x_piles) / (card_width + card_spacing));
+
+			if (p >= 0 && p <= 6) {
+				if (piles[p].length) {
+					const x = x_piles + (card_width + card_spacing) * p;
+					const y = y_piles + card_step * (piles[p].length - 1);
+					const table_card = piles[p][piles[p].length - 1];
+
+					if (clicked_inside(e, x, card_width, y, card_height)
+						&& can_drop_below(table_card, waste[waste.length - 1])
+					) {
+						piles[p].push(waste.pop());
+					}
+				}
+			}
+		}
 	}
 
-	dragging = false;
+	dragging.active = false;
 	window.requestAnimationFrame(draw);
 });
 
@@ -144,7 +166,7 @@ cards.forEach(name => {
 	deck.push({
 		name: name,
 		suit: name.split('_')[0],
-		number: name.split('_')[1],
+		number: Number.parseInt(name.split('_')[1]),
 		turnedup: false,
 	});
 });
@@ -213,8 +235,27 @@ function clicked_inside(event, x, w, y, h) {
 	       event.clientY <= y + h;
 }
 
+function card_color(card)
+{
+	if (card.suit === 'club' || card.suit === 'spade') {
+		return 'black';
+	}
+
+	if (card.suit === 'heart' || card.suit === 'diamond') {
+		return 'red';
+	}
+}
+
+function can_drop_below(card_table, card_hand)
+{
+	console.log('ct', card_color(card_table), 'ch', card_color(card_hand));
+	console.log('tn', card_table.number, 'hn', (card_hand.number + 1));
+	return card_color(card_table) !== card_color(card_hand)
+	       && card_table.number === (card_hand.number + 1);
+}
+
 function track_mouse(event) {
-	if (dragging) {
+	if (dragging.active) {
 		dragging.x = event.clientX;
 		dragging.y = event.clientY;
 	}
@@ -287,7 +328,7 @@ function draw() {
 
 	if (waste.length) {
 		let card;
-		if (dragging && dragging.what === 'waste') {
+		if (dragging.active && dragging.what === 'waste') {
 			if (waste.length > 1) {
 				card = waste[waste.length - 2];
 			}
@@ -324,7 +365,7 @@ function draw() {
 		}
 	}
 
-	if (dragging) {
+	if (dragging.active) {
 		let card;
 		if (dragging.what === 'waste') {
 			card = waste[waste.length - 1];

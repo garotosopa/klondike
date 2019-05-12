@@ -120,7 +120,7 @@ window.addEventListener("mouseup", function (e) {
 	if (dragging.what) {
 		window.removeEventListener("mousemove", track_mouse);
 
-		drop_into_pile(e);
+		drop_into_pile(e) || drop_into_foundation(e);
 	}
 
 	dragging.what = null;
@@ -301,12 +301,52 @@ function drag_from_waste(event) {
 	return true;
 }
 
+function drop_into_foundation(event) {
+	if (!clicked_inside(event, x_foundations, (card_width + card_spacing) * 4, y_foundations, card_height)) {
+		return false;
+	}
+
+	const f = x_to_foundation(event.clientX);
+
+	if (f === undefined) {
+		return false;
+	}
+
+	const table_card = foundations[f][foundations[f].length - 1];
+
+	if (dragging.what === 'waste') {
+		const card = waste[waste.length - 1];
+		if (can_drop_on(table_card, card)) {
+			foundations[f].push(waste.pop());
+		}
+	} else if (dragging.what === 'pile') {
+		if (dragging.step !== piles[dragging.pile].length - 1) {
+			return false;
+		}
+
+		const card = piles[dragging.pile][dragging.step];
+		if (can_drop_on(table_card, card)) {
+			foundations[f].push(piles[dragging.pile].pop());
+		}
+	}
+
+	return true;
+}
 
 function clicked_inside(event, x, w, y, h) {
 	return event.clientX >= x &&
 	       event.clientX <= x + w &&
 	       event.clientY >= y &&
 	       event.clientY <= y + h;
+}
+
+function x_to_foundation(x) {
+	const f = Math.floor((x - x_foundations) / (card_width + card_spacing));
+	const max_x = x_foundations + (card_width + card_spacing) * f + card_width;
+
+	if (f >= 0 && f < 4 && x <= max_x) {
+		return f;
+	}
 }
 
 function x_to_pile(x) {
@@ -336,6 +376,16 @@ function can_drop_below(table_card, hand_card)
 	} else {
 		return card_color(table_card) !== card_color(hand_card)
 			   && table_card.number === (hand_card.number + 1);
+	}
+}
+
+function can_drop_on(table_card, hand_card)
+{
+	if (table_card === undefined) {
+		return hand_card.number === 1;
+	} else {
+		return table_card.suit === hand_card.suit
+		       && table_card.number === (hand_card.number - 1);
 	}
 }
 
@@ -426,11 +476,11 @@ function draw() {
 		}
 	}
 
-	for (let i = 0; i < foundations.length; i++) {
-		const x = x_foundations + (card_width + card_spacing) * i;
+	for (let f = 0; f < foundations.length; f++) {
+		const x = x_foundations + (card_width + card_spacing) * f;
 
-		if (foundations[i].length) {
-			const card = foundations[foundations.length - 1];
+		if (foundations[f].length) {
+			const card = foundations[f][foundations[f].length - 1];
 			ctx.drawImage(images_canvas[card.name], x, y_foundations);
 		} else {
 			ctx.globalAlpha = 0.1;

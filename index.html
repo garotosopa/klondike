@@ -108,36 +108,7 @@ window.addEventListener("click", function (e) {
 });
 
 window.addEventListener("mousedown", function (e) {
-	if (e.clientY >= y_piles) {
-		const p = x_to_pile(e.clientX);
-		if (p !== undefined && piles[p].length) {
-			const x_pile = x_piles + (card_width + card_spacing) * p;
-			let y_step;
-			let s;
-
-			if (e.clientY < y_piles + card_step * piles[p].length) {
-				s = Math.floor((e.clientY - y_piles) / card_step);
-				y_step = y_piles + card_step * s;
-			} else {
-				y_step = y_piles + card_step * (piles[p].length - 1);
-				if (clicked_inside(e, x_pile, card_width, y_step, card_height)) {
-					s = piles[p].length - 1;
-				}
-			}
-
-			if (s >= 0 && s < piles[p].length && piles[p][s].turnedup) {
-				dragging.what = 'pile';
-				dragging.pile = p;
-				dragging.step = s;
-				dragging.x_offset = e.clientX - x_pile;
-				dragging.y_offset = e.clientY - y_step;
-			}
-		}
-	} else if (waste.length && clicked_inside(e, x_waste, card_width, y_waste, card_height)) {
-		dragging.what = 'waste';
-		dragging.x_offset = e.clientX - x_waste;
-		dragging.y_offset = e.clientY - y_waste;
-	}
+	drag_from_pile(e) || drag_from_waste(e);
 
 	if (dragging.what) {
 		track_mouse(e);
@@ -268,6 +239,59 @@ function pick_stock() {
 		window.requestAnimationFrame(draw);
 	}
 }
+
+function drag_from_pile(event) {
+	if (event.clientY < y_piles) {
+		return false;
+	}
+
+	const p = x_to_pile(event.clientX);
+	if (p === undefined) {
+		return false;
+	}
+
+	if (piles[p].length) {
+		const x_pile = x_piles + (card_width + card_spacing) * p;
+		let y_step;
+		let s;
+
+		if (event.clientY < y_piles + card_step * piles[p].length) {
+			s = Math.floor((event.clientY - y_piles) / card_step);
+			y_step = y_piles + card_step * s;
+		} else {
+			y_step = y_piles + card_step * (piles[p].length - 1);
+			if (clicked_inside(event, x_pile, card_width, y_step, card_height)) {
+				s = piles[p].length - 1;
+			}
+		}
+
+		if (piles[p][s] === undefined || !piles[p][s].turnedup) {
+			return false;
+		}
+
+		dragging.step = s;
+		dragging.x_offset = event.clientX - x_pile;
+		dragging.y_offset = event.clientY - y_step;
+	}
+
+	dragging.what = 'pile';
+	dragging.pile = p;
+
+	return true;
+}
+
+function drag_from_waste(event) {
+	if (!waste.length || !clicked_inside(event, x_waste, card_width, y_waste, card_height)) {
+		return false;
+	}
+
+	dragging.what = 'waste';
+	dragging.x_offset = event.clientX - x_waste;
+	dragging.y_offset = event.clientY - y_waste;
+
+	return true;
+}
+
 
 function clicked_inside(event, x, w, y, h) {
 	return event.clientX >= x &&

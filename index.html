@@ -72,7 +72,6 @@ let y_piles;
 
 let needs_redraw = true;
 
-const deck = [];
 const stock = [];
 const waste = [];
 const foundations = [[], [], [], []];
@@ -145,7 +144,7 @@ image_names.forEach(name => {
 });
 
 cards.forEach(name => {
-	deck.push({
+	stock.push({
 		name: name,
 		suit: name.split('_')[0],
 		number: Number.parseInt(name.split('_')[1]),
@@ -159,43 +158,35 @@ cards.forEach(name => {
 
 function new_game()
 {
-	while (stock.length) {
-		deck.push(stock.pop());
-	}
-
 	while (waste.length) {
-		deck.push(waste.pop());
+		stock.push(waste.pop());
 	}
 
 	for (let i = 0; i < piles.length; i++) {
 		while (piles[i].length) {
-			deck.push(piles[i].pop());
+			stock.push(piles[i].pop());
 		}
 	}
 
 	for (let i = 0; i < foundations.length; i++) {
 		while (foundations[i].length) {
-			deck.push(foundations[i].pop());
+			stock.push(foundations[i].pop());
 		}
 	}
 
-	deck.forEach(card => card.turnedup = false);
+	stock.forEach(card => card.turnedup = false);
 
-	for (let i = deck.length; i >= 1; i--) {
+	for (let i = stock.length; i >= 1; i--) {
 		const r = Math.floor(Math.random() * i);
-		[deck[i - 1], deck[r]] = [deck[r], deck[i - 1]];
+		[stock[i - 1], stock[r]] = [stock[r], stock[i - 1]];
 	}
 
 	for (let i = 0; i < piles.length; i++) {
 		for (let j = i; j < piles.length; j++) {
-			piles[j].push(deck.pop());
+			piles[j].push(stock.pop());
 		}
 
 		piles[i][i].turnedup = true;
-	}
-
-	while (deck.length) {
-		stock.push(deck.pop());
 	}
 }
 

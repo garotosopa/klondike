@@ -287,6 +287,11 @@ function drop_into_pile(event) {
 				piles[dragging.pile][piles[dragging.pile].length - 1].turnedup = true;
 			}
 		}
+	} else if (dragging.what === 'foundation') {
+		const card = foundations[dragging.foundation][foundations[dragging.foundation].length - 1];
+		if (can_drop_below(table_card, card)) {
+			piles[p].push(foundations[dragging.foundation].pop());
+		}
 	}
 }
 
@@ -348,6 +353,11 @@ function drop_into_foundation(event) {
 			if (piles[dragging.pile].length) {
 				piles[dragging.pile][piles[dragging.pile].length - 1].turnedup = true;
 			}
+		}
+	} else if (dragging.what === 'foundation') {
+		const card = foundations[dragging.foundation][foundations[dragging.foundation].length - 1];
+		if (can_drop_on(table_card, card)) {
+			foundations[f].push(foundations[dragging.foundation].pop());
 		}
 	}
 

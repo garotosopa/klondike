@@ -181,11 +181,14 @@ function new_game()
 
 	deck.forEach(card => card.turnedup = false);
 
+	for (let i = deck.length; i >= 1; i--) {
+		const r = Math.floor(Math.random() * i);
+		[deck[i - 1], deck[r]] = [deck[r], deck[i - 1]];
+	}
+
 	for (let i = 0; i < piles.length; i++) {
 		for (let j = i; j < piles.length; j++) {
-			const r = Math.floor(Math.random() * deck.length);
-			const card = deck.splice(r, 1)[0];
-			piles[j].push(card);
+			piles[j].push(deck.pop());
 		}
 
 		piles[i][i].turnedup = true;

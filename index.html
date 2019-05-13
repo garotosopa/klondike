@@ -57,6 +57,9 @@ let dragging = {
 	what: null,
 	x_offset: 0,
 	y_offset: 0,
+	pile: null,
+	step: null,
+	foundation: null,
 };
 
 let x_start;
@@ -107,7 +110,7 @@ window.addEventListener("click", function (e) {
 });
 
 window.addEventListener("mousedown", function (e) {
-	drag_from_pile(e) || drag_from_waste(e);
+	drag_from_pile(e) || drag_from_waste(e) || drag_from_foundation(e);
 
 	if (dragging.what) {
 		track_mouse(e);
@@ -299,6 +302,23 @@ function drag_from_waste(event) {
 	return true;
 }
 
+function drag_from_foundation(event) {
+	if (!clicked_inside(event, x_foundations, (card_width + card_spacing) * 4, y_foundations, card_height)) {
+		return false;
+	}
+
+	const f = x_to_foundation(event.clientX);
+
+	if (f === undefined || !foundations[f].length) {
+		return false;
+	}
+
+	dragging.what = 'foundation';
+	dragging.foundation = f;
+	dragging.x_offset = event.clientX - (x_foundations + (card_width + card_spacing) * f);
+	dragging.y_offset = event.clientY - y_foundations;
+}
+
 function drop_into_foundation(event) {
 	if (!clicked_inside(event, x_foundations, (card_width + card_spacing) * 4, y_foundations, card_height)) {
 		return false;
@@ -479,9 +499,12 @@ function draw() {
 
 	for (let f = 0; f < foundations.length; f++) {
 		const x = x_foundations + (card_width + card_spacing) * f;
+		const i = dragging.what === 'foundation' && dragging.foundation === f
+		        ? foundations[f].length - 2
+		        : foundations[f].length - 1;
 
-		if (foundations[f].length) {
-			const card = foundations[f][foundations[f].length - 1];
+		if (i >= 0) {
+			const card = foundations[f][i];
 			ctx.drawImage(images_canvas[card.name], x, y_foundations);
 		} else {
 			ctx.globalAlpha = 0.1;
@@ -521,6 +544,13 @@ function draw() {
 				dragging.y - dragging.y_offset + card_step * (s - dragging.step)
 			);
 		}
+	} else if (dragging.what === 'foundation') {
+		const card = foundations[dragging.foundation][foundations[dragging.foundation].length - 1];
+		ctx.drawImage(
+			images_canvas[card.name],
+			dragging.x - dragging.x_offset,
+			dragging.y - dragging.y_offset
+		);
 	}
 
 	if (needs_redraw) {

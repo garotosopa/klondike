@@ -143,25 +143,10 @@ window.addEventListener("click", function (e) {
 	}
 });
 
-window.addEventListener("mousedown", function (e) {
-	drag_from_pile(e) || drag_from_waste(e) || drag_from_foundation(e);
-
-	if (dragging.what) {
-		track_mouse(e);
-		window.addEventListener("mousemove", track_mouse);
-	}
-});
-
-window.addEventListener("mouseup", function (e) {
-	if (dragging.what) {
-		window.removeEventListener("mousemove", track_mouse);
-
-		drop_into_pile(e) || drop_into_foundation(e);
-	}
-
-	dragging.what = null;
-	window.requestAnimationFrame(draw);
-});
+window.addEventListener("mousedown", handle_drag_event);
+window.addEventListener("touchstart", handle_drag_event);
+window.addEventListener("mouseup", handle_drop_event);
+window.addEventListener("touchend", handle_drop_event);
 
 image_names.forEach(name => {
 	images[name] = new Image();
@@ -243,12 +228,54 @@ function pick_stock() {
 	}
 }
 
+function event_position(event) {
+	return {
+		x: event.changedTouches ?
+		   event.changedTouches[0].clientX :
+		   event.clientX,
+		y: event.changedTouches ?
+		   event.changedTouches[0].clientY :
+		   event.clientY,
+	};
+}
+
+function handle_drag_event(event) {
+	if (dragging.what) {
+		return;
+	}
+
+	drag_from_pile(event) ||
+		drag_from_waste(event) ||
+		drag_from_foundation(event);
+
+	if (dragging.what) {
+		track_movement(event);
+		window.addEventListener("mousemove", track_movement);
+		window.addEventListener("touchmove", track_movement);
+	}
+}
+
+function handle_drop_event(event) {
+	if (dragging.what) {
+		window.removeEventListener("mousemove", track_movement);
+		window.removeEventListener("touchmove", track_movement);
+
+		drop_into_pile(event) ||
+			drop_into_foundation(event);
+	}
+
+	dragging.what = null;
+	window.requestAnimationFrame(draw);
+}
+
 function drag_from_pile(event) {
-	if (event.clientY < y_piles) {
+	const pos = event_position(event);
+
+	if (pos.y < y_piles) {
 		return false;
 	}
 
-	const p = x_to_pile(event.clientX);
+	const p = x_to_pile(pos.x);
 	if (p === undefined) {
 		return false;
 	}
@@ -258,8 +285,8 @@ function drag_from_pile(event) {
 		let y_step;
 		let s;
 
-		if (event.clientY < y_piles + pile_step[p] * piles[p].length) {
-			s = Math.floor((event.clientY - y_piles) / pile_step[p]);
+		if (pos.y < y_piles + pile_step[p] * piles[p].length) {
+			s = Math.floor((pos.y - y_piles) / pile_step[p]);
 			y_step = y_piles + pile_step[p] * s;
 		} else {
 			y_step = y_piles + pile_step[p] * (piles[p].length - 1);
@@ -273,8 +300,8 @@ function drag_from_pile(event) {
 		}
 
 		dragging.step = s;
-		dragging.x_offset = event.clientX - x_pile;
-		dragging.y_offset = event.clientY - y_step;
+		dragging.x_offset = pos.x - x_pile;
+		dragging.y_offset = pos.y - y_step;
 	}
 
 	dragging.what = 'pile';
@@ -284,11 +311,13 @@ function drag_from_pile(event) {
 }
 
 function drop_into_pile(event) {
-	if (event.clientY < y_piles) {
+	const pos = event_position(event);
+
+	if (pos.y < y_piles) {
 		return false;
 	}
 
-	const p = x_to_pile(event.clientX);
+	const p = x_to_pile(pos.x);
 
 	if (p === undefined) {
 		return false;
@@ -341,9 +370,10 @@ function drag_from_waste(event) {
 		return false;
 	}
 
+	const pos = event_position(event);
 	dragging.what = 'waste';
-	dragging.x_offset = event.clientX - x_waste;
-	dragging.y_offset = event.clientY - y_waste;
+	dragging.x_offset = pos.x - x_waste;
+	dragging.y_offset = pos.y - y_waste;
 
 	return true;
 }
@@ -353,7 +383,8 @@ function drag_from_foundation(event) {
 		return false;
 	}
 
-	const f = x_to_foundation(event.clientX);
+	const pos = event_position(event);
+	const f = x_to_foundation(pos.x);
 
 	if (f === undefined || !foundations[f].length) {
 		return false;
@@ -361,8 +392,8 @@ function drag_from_foundation(event) {
 
 	dragging.what = 'foundation';
 	dragging.foundation = f;
-	dragging.x_offset = event.clientX - (x_foundations + (card_width + card_spacing) * f);
-	dragging.y_offset = event.clientY - y_foundations;
+	dragging.x_offset = pos.x - (x_foundations + (card_width + card_spacing) * f);
+	dragging.y_offset = pos.y - y_foundations;
 }
 
 function drop_into_foundation(event) {
@@ -370,7 +401,8 @@ function drop_into_foundation(event) {
 		return false;
 	}
 
-	const f = x_to_foundation(event.clientX);
+	const pos = event_position(event);
+	const f = x_to_foundation(pos.x);
 
 	if (f === undefined) {
 		return false;
@@ -407,10 +439,11 @@ function drop_into_foundation(event) {
 }
 
 function clicked_inside(event, x, w, y, h) {
-	return event.clientX >= x &&
-	       event.clientX <= x + w &&
-	       event.clientY >= y &&
-	       event.clientY <= y + h;
+	const pos = event_position(event);
+	return pos.x >= x &&
+	       pos.x <= x + w &&
+	       pos.y >= y &&
+	       pos.y <= y + h;
 }
 
 function x_to_foundation(x) {
@@ -462,10 +495,11 @@ function can_drop_on(table_card, hand_card)
 	}
 }
 
-function track_mouse(event) {
+function track_movement(event) {
 	if (dragging.what) {
-		dragging.x = event.clientX;
-		dragging.y = event.clientY;
+		const pos = event_position(event);
+		dragging.x = pos.x;
+		dragging.y = pos.y;
 	}
 
 	window.requestAnimationFrame(draw);

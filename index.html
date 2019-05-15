@@ -207,6 +207,8 @@ function event_position(event) {
 }
 
 function handle_drag_event(event) {
+	event.preventDefault();
+
 	if (dragging.what) {
 		return;
 	}
@@ -216,7 +218,6 @@ function handle_drag_event(event) {
 		drag_from_foundation(event);
 
 	if (dragging.what) {
-		event.preventDefault();
 		track_movement(event);
 		window.addEventListener("mousemove", track_movement);
 		window.addEventListener("touchmove", track_movement);

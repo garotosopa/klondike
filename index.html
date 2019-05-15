@@ -209,6 +209,11 @@ function event_position(event) {
 function handle_drag_event(event) {
 	event.preventDefault();
 
+	if (clicked_inside(event, x_stock, card_width, y_stock, card_height)) {
+		dragging.what = 'stock';
+		pick_stock();
+	}
+
 	if (dragging.what) {
 		return;
 	}
@@ -225,7 +230,7 @@ function handle_drag_event(event) {
 }
 
 function handle_drop_event(event) {
-	if (dragging.what) {
+	if (dragging.what && dragging.what !== 'stock') {
 		window.removeEventListener("mousemove", track_movement);
 		window.removeEventListener("touchmove", track_movement);
 

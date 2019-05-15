@@ -8,7 +8,4 @@ The image set of playing cards was copied from [htdebeer/SVG-cards](https://gith
 
 ## License
 
-Copyright (c) Diogo. All rights reserved.
-
 This project is licensed under the [MIT](LICENSE) License.
-

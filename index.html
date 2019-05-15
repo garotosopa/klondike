@@ -111,7 +111,7 @@ window.addEventListener("click", function (e) {
 });
 
 window.addEventListener("mousedown", handle_drag_event);
-window.addEventListener("touchstart", handle_drag_event);
+window.addEventListener("touchstart", handle_drag_event, { passive: false });
 window.addEventListener("mouseup", handle_drop_event);
 window.addEventListener("touchend", handle_drop_event);
 
@@ -216,6 +216,7 @@ function handle_drag_event(event) {
 		drag_from_foundation(event);
 
 	if (dragging.what) {
+		event.preventDefault();
 		track_movement(event);
 		window.addEventListener("mousemove", track_movement);
 		window.addEventListener("touchmove", track_movement);

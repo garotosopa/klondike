@@ -137,12 +137,6 @@ window.addEventListener("keydown", function (e) {
 	}
 });
 
-window.addEventListener("click", function (e) {
-	if (clicked_inside(e, x_stock, card_width, y_stock, card_height)) {
-		pick_stock();
-	}
-});
-
 window.addEventListener("mousedown", handle_drag_event);
 window.addEventListener("touchstart", handle_drag_event, { passive: false });
 window.addEventListener("mouseup", handle_drop_event);

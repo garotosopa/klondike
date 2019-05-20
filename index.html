@@ -61,31 +61,37 @@ if ('serviceWorker' in navigator) {
 </script>
 <script>
 /**
- * Globals
+ * Game globals
  */
 
-const cards = [];
+const stock = [];
+const waste = [];
+const foundations = [[], [], [], []];
+const piles = [[], [], [], [], [], [], []];
+const suit_color = { club: 'black', spade: 'black', heart: 'red', diamond: 'red' };
+
 ['club', 'diamond', 'heart', 'spade'].forEach(suit => {
 	for (let i = 1; i <= 13; i++) {
-		cards.push(`${suit}_${i}`);
+		stock.push({
+			name: `${suit}_${i}`,
+			suit: suit,
+			number: i,
+			turnedup: false,
+		});
 	}
 });
 
-const image_names = ['back_red', 'card_base', ...cards];
+/**
+ * UI globals
+ */
+
+const ACTION_DOES_NOT_BELONG_HERE = false;
+const ACTION_TRIED = true;
+
+const image_names = ['back_red', 'card_base', ...stock.map(card => card.name)];
 let image_queue = image_names.length;
 const images = {};
 const images_canvas = {};
-
-const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
-
-let width;
-let height;
-let card_width;
-let card_height;
-let card_spacing;
-let card_step;
-let pile_step = [0, 0, 0, 0, 0, 0, 0];
 
 let dragging = {
 	what: null,
@@ -96,38 +102,29 @@ let dragging = {
 	foundation: null,
 };
 
-let x_start;
-let y_start;
-let x_stock;
-let y_stock;
-let x_waste;
-let y_waste;
-let x_foundations;
-let y_foundations;
-let x_piles;
-let y_piles;
-
-let needs_redraw = true;
-
-const stock = [];
-const waste = [];
-const foundations = [[], [], [], []];
-const piles = [[], [], [], [], [], [], []];
+let card_width;
+let card_height;
+let card_spacing;
+let card_step;
+const pile_step = [0, 0, 0, 0, 0, 0, 0];
+const stock_area = { x: 0, y: 0, w: 0, h: 0 };
+const waste_area = { x: 0, y: 0, w: 0, h: 0 };
+const foundations_area = { x: 0, y: 0, w: 0, h: 0 };
+const piles_area = { x: 0, y: 0, w: 0, h: 0 };
 
 /**
  * Init
  */
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
 
 recalculate_sizes();
 
 window.addEventListener("resize", function () {
 	recalculate_sizes();
 	image_names.forEach(redraw_image);
-	needs_redraw = true;
-
-	if (!image_queue) {
-		window.requestAnimationFrame(draw);
-	}
+	window.requestAnimationFrame(draw);
 });
 
 window.addEventListener("keydown", function (e) {
@@ -159,21 +156,11 @@ image_names.forEach(name => {
 	});
 });
 
-cards.forEach(name => {
-	stock.push({
-		name: name,
-		suit: name.split('_')[0],
-		number: Number.parseInt(name.split('_')[1]),
-		turnedup: false,
-	});
-});
-
 /**
- * Functions
+ * Game functions
  */
 
-function new_game()
-{
+ function new_game() {
 	while (waste.length) {
 		stock.push(waste.pop());
 	}
@@ -208,238 +195,139 @@ function new_game()
 	pile_step.forEach((_, p) => recalculate_pile_step(p));
 }
 
+function can_move_to_pile(card, p) {
+	if (piles[p].length === 0) {
+		return card.number === 13;
+	} else {
+		const table_card = piles[p][piles[p].length - 1];
+
+		return suit_color[table_card.suit] !== suit_color[card.suit]
+			   && table_card.number === (card.number + 1);
+	}
+}
+
+function can_move_to_foundation(card, f) {
+	if (foundations[f].length === 0) {
+		return card.number === 1;
+	} else {
+		const table_card = foundations[f][foundations[f].length - 1];
+
+		return table_card.suit === card.suit
+		       && table_card.number === (card.number - 1);
+	}
+}
+
+function move_from_waste_to_foundation(f) {
+	const card = waste[waste.length - 1];
+
+	if (f === undefined || !can_move_to_foundation(card, f)) {
+		for (let other_f = 0; other_f < foundations.length; other_f++) {
+			if (can_move_to_foundation(card, other_f)) {
+				f = other_f;
+				break;
+			}
+		}
+	}
+
+	if (can_move_to_foundation(card, f)) {
+		foundations[f].push(waste.pop());
+	}
+}
+
+function move_from_waste_to_pile(p) {
+	const card = waste[waste.length - 1];
+
+	if (can_move_to_pile(card, p)) {
+		piles[p].push(waste.pop());
+		recalculate_pile_step(p);
+		window.requestAnimationFrame(draw);
+	}
+}
+
+function move_from_pile_to_foundation(p, f) {
+	const card = piles[p][piles[p].length - 1];
+
+	if (f === undefined || !can_move_to_foundation(card, f)) {
+		for (let other_f = 0; other_f < foundations.length; other_f++) {
+			if (can_move_to_foundation(card, other_f)) {
+				f = other_f;
+				break;
+			}
+		}
+	}
+
+	if (can_move_to_foundation(card, f)) {
+		foundations[f].push(piles[p].pop());
+
+		if (piles[dragging.pile].length) {
+			piles[dragging.pile][piles[dragging.pile].length - 1].turnedup = true;
+		}
+
+		recalculate_pile_step(p);
+		window.requestAnimationFrame(draw);
+	}
+}
+
+function move_from_pile_to_pile(from, step, to) {
+	const card = piles[from][step];
+
+	if (can_move_to_pile(card, to)) {
+		const hand = piles[from].splice(step, piles[from].length - step);
+
+		for (let i = 0; i < hand.length; i++) {
+			piles[to].push(hand[i]);
+		}
+
+		if (piles[from].length) {
+			piles[from][piles[from].length - 1].turnedup = true;
+		}
+
+		recalculate_pile_step(from);
+		recalculate_pile_step(to);
+		window.requestAnimationFrame(draw);
+	}
+}
+
+function move_from_foundation_to_foundation(from, to) {
+	if (foundations[from].length === 1 && foundations[to].length === 0) {
+		foundations[to].push(foundations[from].pop());
+	}
+}
+
+function move_from_foundation_to_pile(f, p) {
+	const card = foundations[f][foundations[f].length - 1];
+
+	if (can_move_to_pile(card, p)) {
+		piles[p].push(foundations[f].pop());
+		recalculate_pile_step(p);
+		window.requestAnimationFrame(draw);
+	}
+}
+
 function pick_stock() {
 	if (stock.length) {
 		waste.push(stock.pop());
 		waste[waste.length - 1].turnedup = true;
-		window.requestAnimationFrame(draw);
 	} else if (waste.length) {
 		while(waste.length) {
 			stock.push(waste.pop());
 			stock[stock.length - 1].turnedup = false;
 		}
-		window.requestAnimationFrame(draw);
 	}
 }
+
+/**
+ * UI Functions
+ */
 
 function event_position(event) {
 	return {
-		x: event.changedTouches ?
-		   event.changedTouches[0].clientX :
-		   event.clientX,
-		y: event.changedTouches ?
-		   event.changedTouches[0].clientY :
-		   event.clientY,
+		x: event.changedTouches ? event.changedTouches[0].clientX : event.clientX,
+		y: event.changedTouches ? event.changedTouches[0].clientY : event.clientY,
 	};
 }
 
-function handle_drag_event(event) {
-	event.preventDefault();
-
-	if (clicked_inside(event, x_stock, card_width, y_stock, card_height)) {
-		dragging.what = 'stock';
-		pick_stock();
-	}
-
-	if (dragging.what) {
-		return;
-	}
-
-	drag_from_pile(event) ||
-		drag_from_waste(event) ||
-		drag_from_foundation(event);
-
-	if (dragging.what) {
-		track_movement(event);
-		window.addEventListener("mousemove", track_movement);
-		window.addEventListener("touchmove", track_movement);
-	}
-}
-
-function handle_drop_event(event) {
-	if (dragging.what && dragging.what !== 'stock') {
-		window.removeEventListener("mousemove", track_movement);
-		window.removeEventListener("touchmove", track_movement);
-
-		drop_into_pile(event) ||
-			drop_into_foundation(event);
-	}
-
-	dragging.what = null;
-	window.requestAnimationFrame(draw);
-}
-
-function drag_from_pile(event) {
-	const pos = event_position(event);
-
-	if (pos.y < y_piles) {
-		return false;
-	}
-
-	const p = x_to_pile(pos.x);
-	if (p === undefined) {
-		return false;
-	}
-
-	if (piles[p].length) {
-		const x_pile = x_piles + (card_width + card_spacing) * p;
-		let y_step;
-		let s;
-
-		if (pos.y < y_piles + pile_step[p] * piles[p].length) {
-			s = Math.floor((pos.y - y_piles) / pile_step[p]);
-			y_step = y_piles + pile_step[p] * s;
-		} else {
-			y_step = y_piles + pile_step[p] * (piles[p].length - 1);
-			if (clicked_inside(event, x_pile, card_width, y_step, card_height)) {
-				s = piles[p].length - 1;
-			}
-		}
-
-		if (piles[p][s] === undefined || !piles[p][s].turnedup) {
-			return false;
-		}
-
-		dragging.step = s;
-		dragging.x_offset = pos.x - x_pile;
-		dragging.y_offset = pos.y - y_step;
-	}
-
-	dragging.what = 'pile';
-	dragging.pile = p;
-
-	return true;
-}
-
-function drop_into_pile(event) {
-	const pos = event_position(event);
-
-	if (pos.y < y_piles) {
-		return false;
-	}
-
-	const p = x_to_pile(pos.x);
-
-	if (p === undefined) {
-		return false;
-	}
-
-	const x = x_piles + (card_width + card_spacing) * p;
-	const y = y_piles + pile_step[p] * (piles[p].length ? piles[p].length - 1 : 0);
-	const table_card = piles[p][piles[p].length - 1];
-
-	if (!clicked_inside(event, x, card_width, y, card_height)) {
-		return false;
-	}
-
-	if (dragging.what === 'waste') {
-		const card = waste[waste.length - 1];
-		if (can_drop_below(table_card, card)) {
-			piles[p].push(waste.pop());
-			recalculate_pile_step(p);
-		}
-	} else if (dragging.what === 'pile') {
-		const card = piles[dragging.pile][dragging.step];
-		if (can_drop_below(table_card, card)) {
-			const hand = piles[dragging.pile].splice(
-				dragging.step,
-				piles[dragging.pile].length - dragging.step
-			);
-
-			for (let i = 0; i < hand.length; i++) {
-				piles[p].push(hand[i]);
-			}
-
-			if (piles[dragging.pile].length) {
-				piles[dragging.pile][piles[dragging.pile].length - 1].turnedup = true;
-			}
-
-			recalculate_pile_step(p);
-			recalculate_pile_step(dragging.pile);
-		}
-	} else if (dragging.what === 'foundation') {
-		const card = foundations[dragging.foundation][foundations[dragging.foundation].length - 1];
-		if (can_drop_below(table_card, card)) {
-			piles[p].push(foundations[dragging.foundation].pop());
-			recalculate_pile_step(p);
-		}
-	}
-}
-
-function drag_from_waste(event) {
-	if (!waste.length || !clicked_inside(event, x_waste, card_width, y_waste, card_height)) {
-		return false;
-	}
-
-	const pos = event_position(event);
-	dragging.what = 'waste';
-	dragging.x_offset = pos.x - x_waste;
-	dragging.y_offset = pos.y - y_waste;
-
-	return true;
-}
-
-function drag_from_foundation(event) {
-	if (!clicked_inside(event, x_foundations, (card_width + card_spacing) * 4, y_foundations, card_height)) {
-		return false;
-	}
-
-	const pos = event_position(event);
-	const f = x_to_foundation(pos.x);
-
-	if (f === undefined || !foundations[f].length) {
-		return false;
-	}
-
-	dragging.what = 'foundation';
-	dragging.foundation = f;
-	dragging.x_offset = pos.x - (x_foundations + (card_width + card_spacing) * f);
-	dragging.y_offset = pos.y - y_foundations;
-}
-
-function drop_into_foundation(event) {
-	if (!clicked_inside(event, x_foundations, (card_width + card_spacing) * 4, y_foundations, card_height)) {
-		return false;
-	}
-
-	const pos = event_position(event);
-	const f = x_to_foundation(pos.x);
-
-	if (f === undefined) {
-		return false;
-	}
-
-	const table_card = foundations[f][foundations[f].length - 1];
-
-	if (dragging.what === 'waste') {
-		const card = waste[waste.length - 1];
-		if (can_drop_on(table_card, card)) {
-			foundations[f].push(waste.pop());
-		}
-	} else if (dragging.what === 'pile') {
-		if (dragging.step !== piles[dragging.pile].length - 1) {
-			return false;
-		}
-
-		const card = piles[dragging.pile][dragging.step];
-		if (can_drop_on(table_card, card)) {
-			foundations[f].push(piles[dragging.pile].pop());
-			if (piles[dragging.pile].length) {
-				piles[dragging.pile][piles[dragging.pile].length - 1].turnedup = true;
-			}
-			recalculate_pile_step(dragging.pile);
-		}
-	} else if (dragging.what === 'foundation') {
-		const card = foundations[dragging.foundation][foundations[dragging.foundation].length - 1];
-		if (can_drop_on(table_card, card)) {
-			foundations[f].push(foundations[dragging.foundation].pop());
-		}
-	}
-
-	return true;
-}
-
-function clicked_inside(event, x, w, y, h) {
+function is_event_in(event, x, w, y, h) {
 	const pos = event_position(event);
 	return pos.x >= x &&
 	       pos.x <= x + w &&
@@ -447,56 +335,184 @@ function clicked_inside(event, x, w, y, h) {
 	       pos.y <= y + h;
 }
 
-function x_to_foundation(x) {
-	const f = Math.floor((x - x_foundations) / (card_width + card_spacing));
-	const max_x = x_foundations + (card_width + card_spacing) * f + card_width;
+function is_event_in_area(event, area) {
+	return is_event_in(event, area.x, area.w, area.y, area.h);
+}
 
-	if (f >= 0 && f < 4 && x <= max_x) {
+function handle_drag_event(event) {
+	event.preventDefault();
+
+	if (is_event_in_area(event, stock_area)) {
+		pick_stock();
+		window.requestAnimationFrame(draw);
+		return;
+	}
+
+	try_drag_from_pile(event) ||
+		try_drag_from_waste(event) ||
+		try_drag_from_foundation(event);
+
+	if (dragging.what) {
+		handle_movement(event);
+		window.addEventListener("mousemove", handle_movement);
+		window.addEventListener("touchmove", handle_movement);
+	}
+}
+
+function handle_drop_event(event) {
+	if (!dragging.what) {
+		return false;
+	}
+
+	window.removeEventListener("mousemove", handle_movement);
+	window.removeEventListener("touchmove", handle_movement);
+
+	try_drop_into_pile(event) ||
+		try_drop_into_foundation(event);
+
+	dragging.what = null;
+	window.requestAnimationFrame(draw);
+}
+
+function try_drag_from_pile(event) {
+	if (!is_event_in_area(event, piles_area)) {
+		return ACTION_DOES_NOT_BELONG_HERE;
+	}
+
+	const pos = event_position(event);
+	const p = x_to_pile(pos.x);
+
+	if (p === undefined || !piles[p].length) {
+		return ACTION_TRIED;
+	}
+
+	const x_pile = piles_area.x + (card_width + card_spacing) * p;
+	let y_step;
+	let s;
+
+	if (pos.y < piles_area.y + pile_step[p] * piles[p].length) {
+		s = Math.floor((pos.y - piles_area.y) / pile_step[p]);
+		y_step = piles_area.y + pile_step[p] * s;
+	} else {
+		y_step = piles_area.y + pile_step[p] * (piles[p].length - 1);
+		if (is_event_in(event, x_pile, card_width, y_step, card_height)) {
+			s = piles[p].length - 1;
+		}
+	}
+
+	if (piles[p][s] !== undefined && piles[p][s].turnedup) {
+		dragging.step = s;
+		dragging.x_offset = pos.x - x_pile;
+		dragging.y_offset = pos.y - y_step;
+
+		dragging.what = 'pile';
+		dragging.pile = p;
+	}
+
+	return ACTION_TRIED;
+}
+
+function try_drag_from_waste(event) {
+	if (!waste.length || !is_event_in_area(event, waste_area)) {
+		return ACTION_DOES_NOT_BELONG_HERE;
+	}
+
+	const pos = event_position(event);
+	dragging.what = 'waste';
+	dragging.x_offset = pos.x - waste_area.x;
+	dragging.y_offset = pos.y - waste_area.y;
+
+	return ACTION_TRIED;
+}
+
+function try_drag_from_foundation(event) {
+	if (!is_event_in_area(event, foundations_area)) {
+		return ACTION_DOES_NOT_BELONG_HERE;
+	}
+
+	const pos = event_position(event);
+	const f = x_to_foundation(pos.x);
+
+	if (f !== undefined && foundations[f].length) {
+		dragging.what = 'foundation';
+		dragging.foundation = f;
+		dragging.x_offset = pos.x - (foundations_area.x + (card_width + card_spacing) * f);
+		dragging.y_offset = pos.y - foundations_area.y;
+	}
+
+	return ACTION_TRIED;
+}
+
+function try_drop_into_pile(event) {
+	if (!is_event_in_area(event, piles_area)) {
+		return ACTION_DOES_NOT_BELONG_HERE;
+	}
+
+	const pos = event_position(event);
+	const p = x_to_pile(pos.x);
+
+	if (p === undefined) {
+		return ACTION_TRIED;
+	}
+
+	const x = piles_area.x + (card_width + card_spacing) * p;
+	const y = piles_area.y + pile_step[p] * (piles[p].length ? piles[p].length - 1 : 0);
+
+	if (is_event_in(event, x, card_width, y, card_height)) {
+		if (dragging.what === 'waste') {
+			move_from_waste_to_pile(p);
+		} else if (dragging.what === 'pile') {
+			move_from_pile_to_pile(dragging.pile, dragging.step, p);
+		} else if (dragging.what === 'foundation') {
+			move_from_foundation_to_pile(dragging.foundation, p);
+		}
+	}
+
+	return ACTION_TRIED;
+}
+
+function try_drop_into_foundation(event) {
+	if (!is_event_in_area(event, foundations_area)) {
+		return ACTION_DOES_NOT_BELONG_HERE;
+	}
+
+	const pos = event_position(event);
+	const f = x_to_foundation(pos.x);
+
+	if (dragging.what === 'waste') {
+		move_from_waste_to_foundation(f);
+	} else if (dragging.what === 'pile') {
+		if (dragging.step === piles[dragging.pile].length - 1) {
+			move_from_pile_to_foundation(dragging.pile, f);
+		}
+	} else if (dragging.what === 'foundation') {
+		if (f !== undefined) {
+			move_from_foundation_to_foundation(dragging.foundation, f);
+		}
+	}
+
+	return ACTION_TRIED;
+}
+
+function x_to_foundation(x) {
+	const f = Math.floor((x - foundations_area.x) / (card_width + card_spacing));
+	const max_x = foundations_area.x + (card_width + card_spacing) * f + card_width;
+
+	if (f >= 0 && f < foundations.length && x <= max_x) {
 		return f;
 	}
 }
 
 function x_to_pile(x) {
-	const p = Math.floor((x - x_piles) / (card_width + card_spacing));
-	const max_x = x_piles + (card_width + card_spacing) * p + card_width;
+	const p = Math.floor((x - piles_area.x) / (card_width + card_spacing));
+	const max_x = piles_area.x + (card_width + card_spacing) * p + card_width;
 
-	if (p >= 0 && p < 7 && x <= max_x) {
+	if (p >= 0 && p < piles.length && x <= max_x) {
 		return p;
 	}
 }
 
-function card_color(card)
-{
-	if (card.suit === 'club' || card.suit === 'spade') {
-		return 'black';
-	}
-
-	if (card.suit === 'heart' || card.suit === 'diamond') {
-		return 'red';
-	}
-}
-
-function can_drop_below(table_card, hand_card)
-{
-	if (table_card === undefined || !table_card.turnedup) {
-		return hand_card.number === 13;
-	} else {
-		return card_color(table_card) !== card_color(hand_card)
-			   && table_card.number === (hand_card.number + 1);
-	}
-}
-
-function can_drop_on(table_card, hand_card)
-{
-	if (table_card === undefined) {
-		return hand_card.number === 1;
-	} else {
-		return table_card.suit === hand_card.suit
-		       && table_card.number === (hand_card.number - 1);
-	}
-}
-
-function track_movement(event) {
+function handle_movement(event) {
 	if (dragging.what) {
 		const pos = event_position(event);
 		dragging.x = pos.x;
@@ -507,22 +523,20 @@ function track_movement(event) {
 }
 
 function recalculate_sizes() {
-	width = document.body.clientWidth;
-	height = document.body.clientHeight;
-	canvas.width = width;
-	canvas.height = height;
+	canvas.width = document.body.clientWidth;
+	canvas.height = document.body.clientHeight;
 
 	const factor_spacing = 0.1;
 	const factor_width = 0.69;
 	const factor_height = 1.45;
 	const factor_step_max = 0.165;
 
-	card_width = Math.round(width / 7 * (1 - factor_spacing));
+	card_width = Math.round(canvas.width / 7 * (1 - factor_spacing));
 	card_height = Math.round(card_width * factor_height);
 	card_spacing = Math.round(card_width * (factor_spacing / 2));
 	card_step = Math.round(card_height * factor_step_max);
 
-	const max_card_height = height / (factor_step_max * 7 + 2);
+	const max_card_height = canvas.height / (factor_step_max * 7 + 2);
 
 	if (card_height > max_card_height) {
 		card_height = Math.round(max_card_height);
@@ -531,25 +545,37 @@ function recalculate_sizes() {
 		card_step = Math.round(card_height * factor_step_max);
 	}
 
-	x_start = Math.round((width - ((card_width + card_spacing) * 7)) / 2);
-	y_start = card_spacing;
-	x_stock = x_start;
-	y_stock = y_start;
-	x_waste = x_start + card_width + card_spacing;
-	y_waste = card_spacing;
-	x_foundations = x_start + (card_width + card_spacing) * 3;
-	y_foundations = card_spacing;
-	x_piles = x_start;
-	y_piles = card_height + card_spacing * 2;
+	stock_area.w = card_width;
+	stock_area.h = card_height;
+	stock_area.x = card_spacing;
+	stock_area.y = card_spacing;
+
+	waste_area.w = card_width;
+	waste_area.h = card_height;
+	waste_area.x = stock_area.x + stock_area.w + card_spacing;
+	waste_area.y = card_spacing;
+
+	foundations_area.w = (card_width + card_spacing) * foundations.length - card_spacing;
+	foundations_area.h = card_height;
+	foundations_area.x = waste_area.x + waste_area.w + card_width + card_spacing * 2;
+	foundations_area.y = card_spacing;
+
+	piles_area.w = (card_width + card_spacing) * piles.length - card_spacing;
+	piles_area.h = canvas.height - card_height - card_spacing * 2;
+	piles_area.x = card_spacing;
+	piles_area.y = card_height + card_spacing * 2;
 
 	pile_step.forEach((_, p) => recalculate_pile_step(p));
+
+	if (!image_queue) {
+		window.requestAnimationFrame(draw);
+	}
 }
 
-function recalculate_pile_step(p)
-{
-	if (piles[p].length) {
-		const max_pile_step = Math.floor((height - y_piles - card_height - card_spacing) / (piles[p].length - 1));
-		pile_step[p] = max_pile_step > card_step ? card_step : max_pile_step;
+function recalculate_pile_step(p) {
+	if (piles[p].length > 1) {
+		const dynamic_pile_step = Math.floor((piles_area.h - card_height) / (piles[p].length - 1));
+		pile_step[p] = dynamic_pile_step > card_step ? card_step : dynamic_pile_step;
 	} else {
 		pile_step[p] = card_step;
 	}
@@ -567,66 +593,7 @@ function redraw_image(name) {
 	image_ctx.drawImage(images[name], 0, 0, card_width, card_height);
 }
 
-function draw() {
-	needs_redraw = false;
-
-	ctx.fillStyle = 'rgb(0, 80, 0)';
-	ctx.fillRect(0, 0, width, height);
-
-	if (stock.length) {
-		ctx.drawImage(images_canvas.back_red, x_stock, y_stock);
-	} else {
-		ctx.globalAlpha = 0.1;
-		ctx.drawImage(images_canvas.card_base, x_stock, y_stock);
-		ctx.globalAlpha = 1;
-	}
-
-	if (waste.length) {
-		let card;
-		if (dragging.what === 'waste') {
-			if (waste.length > 1) {
-				card = waste[waste.length - 2];
-			}
-		} else {
-			card = waste[waste.length - 1];
-		}
-
-		if (card) {
-			ctx.drawImage(images_canvas[card.name], x_waste, y_waste);
-		}
-	}
-
-	for (let f = 0; f < foundations.length; f++) {
-		const x = x_foundations + (card_width + card_spacing) * f;
-		const i = dragging.what === 'foundation' && dragging.foundation === f
-		        ? foundations[f].length - 2
-		        : foundations[f].length - 1;
-
-		if (i >= 0) {
-			const card = foundations[f][i];
-			ctx.drawImage(images_canvas[card.name], x, y_foundations);
-		} else {
-			ctx.globalAlpha = 0.1;
-			ctx.drawImage(images_canvas.card_base, x, y_foundations);
-			ctx.globalAlpha = 1;
-		}
-	}
-
-	for (let p = 0; p < piles.length; p++) {
-		const x = x_start + (card_width + card_spacing) * p;
-
-		for (let s = 0; s < piles[p].length; s++) {
-			if (dragging.what === 'pile' && dragging.pile === p && dragging.step === s) {
-				break;
-			}
-
-			const y = y_piles + pile_step[p] * s;
-			const card = piles[p][s];
-			const image_name = card.turnedup ? card.name : 'back_red';
-			ctx.drawImage(images_canvas[image_name], x, y);
-		}
-	}
-
+function draw_dragging() {
 	if (dragging.what === 'waste') {
 		const card = waste[waste.length - 1];
 		ctx.drawImage(
@@ -651,10 +618,79 @@ function draw() {
 			dragging.y - dragging.y_offset
 		);
 	}
+}
 
-	if (needs_redraw) {
-		window.requestAnimationFrame(draw);
+function draw_foundations() {
+	for (let f = 0; f < foundations.length; f++) {
+		const x = foundations_area.x + (card_width + card_spacing) * f;
+		const i = dragging.what === 'foundation' && dragging.foundation === f
+		        ? foundations[f].length - 2
+		        : foundations[f].length - 1;
+
+		if (i >= 0) {
+			const card = foundations[f][i];
+			ctx.drawImage(images_canvas[card.name], x, foundations_area.y);
+		} else {
+			ctx.globalAlpha = 0.1;
+			ctx.drawImage(images_canvas.card_base, x, foundations_area.y);
+			ctx.globalAlpha = 1;
+		}
 	}
+}
+
+function draw_piles() {
+	for (let p = 0; p < piles.length; p++) {
+		const x = piles_area.x + (card_width + card_spacing) * p;
+
+		for (let s = 0; s < piles[p].length; s++) {
+			if (dragging.what === 'pile' && dragging.pile === p && dragging.step === s) {
+				break;
+			}
+
+			const y = piles_area.y + pile_step[p] * s;
+			const card = piles[p][s];
+			const image_name = card.turnedup ? card.name : 'back_red';
+			ctx.drawImage(images_canvas[image_name], x, y);
+		}
+	}
+}
+
+function draw_stock() {
+	if (stock.length) {
+		ctx.drawImage(images_canvas.back_red, stock_area.x, stock_area.y);
+	} else {
+		ctx.globalAlpha = 0.1;
+		ctx.drawImage(images_canvas.card_base, stock_area.x, stock_area.y);
+		ctx.globalAlpha = 1;
+	}
+}
+
+function draw_waste() {
+	if (waste.length) {
+		let card;
+		if (dragging.what === 'waste') {
+			if (waste.length > 1) {
+				card = waste[waste.length - 2];
+			}
+		} else {
+			card = waste[waste.length - 1];
+		}
+
+		if (card) {
+			ctx.drawImage(images_canvas[card.name], waste_area.x, waste_area.y);
+		}
+	}
+}
+
+function draw() {
+	ctx.fillStyle = 'rgb(0, 80, 0)';
+	ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+	draw_stock();
+	draw_waste();
+	draw_foundations();
+	draw_piles();
+	draw_dragging();
 }
 </script>
 </body>

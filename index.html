@@ -31,6 +31,7 @@ canvas {
  * Game globals
  */
 
+const hand = [];
 const stock = [];
 const waste = [];
 const foundations = [[], [], [], []];
@@ -39,7 +40,7 @@ const suit_color = { club: 'black', spade: 'black', heart: 'red', diamond: 'red'
 
 ['club', 'diamond', 'heart', 'spade'].forEach(suit => {
 	for (let i = 1; i <= 13; i++) {
-		stock.push({
+		hand.push({
 			name: `${suit}_${i}`,
 			suit: suit,
 			number: i,
@@ -55,18 +56,28 @@ const suit_color = { club: 'black', spade: 'black', heart: 'red', diamond: 'red'
 const ACTION_DOES_NOT_BELONG_HERE = false;
 const ACTION_TRIED = true;
 
-const image_names = ['back_red', 'card_base', ...stock.map(card => card.name)];
+const image_names = ['back_red', 'card_base', ...hand.map(card => card.name)];
 let image_queue = image_names.length;
 const images = {};
 const images_canvas = {};
 
-let dragging = {
+const dragging = {
 	what: null,
 	x_offset: 0,
 	y_offset: 0,
 	pile: null,
 	step: null,
 	foundation: null,
+};
+
+const animating = {
+	cards: [],
+	origin_x: null,
+	origin_y: null,
+	dest_x: null,
+	dest_y: null,
+	start_time: null,
+	duration: null,
 };
 
 let card_width;
@@ -78,6 +89,7 @@ const stock_area = { x: 0, y: 0, w: 0, h: 0 };
 const waste_area = { x: 0, y: 0, w: 0, h: 0 };
 const foundations_area = { x: 0, y: 0, w: 0, h: 0 };
 const piles_area = { x: 0, y: 0, w: 0, h: 0 };
+const hand_area = { x: 0, y: 0, w: 0, h: 0 };
 
 /**
  * Init
@@ -101,11 +113,6 @@ window.addEventListener("keydown", function (e) {
 	}
 });
 
-window.addEventListener("mousedown", handle_drag_event);
-window.addEventListener("touchstart", handle_drag_event, { passive: false });
-window.addEventListener("mouseup", handle_drop_event);
-window.addEventListener("touchend", handle_drop_event);
-
 image_names.forEach(name => {
 	images[name] = new Image();
 	images[name].src = `cards/${name}.png`;
@@ -114,12 +121,13 @@ image_names.forEach(name => {
 		redraw_image(name);
 
 		if (!image_queue) {
-			new_game();
-			window.requestAnimationFrame(draw);
+			animate_new_game(() => {
+				bind_controls();
+			});
 		}
 	});
-	images[name].addEventListener('error', (er) => {
-		throw er;
+	images[name].addEventListener('error', e => {
+		console.error(e);
 	});
 });
 
@@ -127,39 +135,53 @@ image_names.forEach(name => {
  * Game functions
  */
 
- function new_game() {
+function collect_cards() {
 	while (waste.length) {
-		stock.push(waste.pop());
+		hand.push(waste.pop());
 	}
 
 	for (let i = 0; i < piles.length; i++) {
 		while (piles[i].length) {
-			stock.push(piles[i].pop());
+			hand.push(piles[i].pop());
 		}
 	}
 
 	for (let i = 0; i < foundations.length; i++) {
 		while (foundations[i].length) {
-			stock.push(foundations[i].pop());
+			hand.push(foundations[i].pop());
 		}
 	}
 
-	stock.forEach(card => card.turnedup = false);
+	hand.forEach(card => card.turnedup = false);
+}
 
-	for (let i = stock.length; i >= 1; i--) {
+function shuffle_hand() {
+	for (let i = hand.length; i >= 1; i--) {
 		const r = Math.floor(Math.random() * i);
-		[stock[i - 1], stock[r]] = [stock[r], stock[i - 1]];
+		[hand[i - 1], hand[r]] = [hand[r], hand[i - 1]];
 	}
+}
 
+function deal_cards() {
 	for (let i = 0; i < piles.length; i++) {
 		for (let j = i; j < piles.length; j++) {
-			piles[j].push(stock.pop());
+			piles[j].push(hand.pop());
 		}
 
 		piles[i][i].turnedup = true;
 	}
 
 	pile_step.forEach((_, p) => recalculate_pile_step(p));
+
+	while (hand.length) {
+		stock.push(hand.pop());
+	}
+}
+
+function new_game() {
+	collect_cards();
+	shuffle_hand();
+	deal_cards();
 }
 
 function can_move_to_pile(card, p) {
@@ -287,6 +309,20 @@ function pick_stock() {
  * UI Functions
  */
 
+function bind_controls() {
+	window.addEventListener("mousedown", handle_drag_event);
+	window.addEventListener("touchstart", handle_drag_event, { passive: false });
+	window.addEventListener("mouseup", handle_drop_event);
+	window.addEventListener("touchend", handle_drop_event);
+}
+
+function unbind_controls() {
+	window.removeEventListener("mousedown", handle_drag_event);
+	window.removeEventListener("touchstart", handle_drag_event);
+	window.removeEventListener("mouseup", handle_drop_event);
+	window.removeEventListener("touchend", handle_drop_event);
+}
+
 function event_position(event) {
 	return {
 		x: event.changedTouches ? event.changedTouches[0].clientX : event.clientX,
@@ -353,15 +389,15 @@ function try_drag_from_pile(event) {
 		return ACTION_TRIED;
 	}
 
-	const x_pile = piles_area.x + (card_width + card_spacing) * p;
+	const x_pile = pile_x(p);
 	let y_step;
 	let s;
 
-	if (pos.y < piles_area.y + pile_step[p] * piles[p].length) {
+	if (pos.y < pile_card_y(p, piles[p].length)) {
 		s = Math.floor((pos.y - piles_area.y) / pile_step[p]);
-		y_step = piles_area.y + pile_step[p] * s;
+		y_step = pile_card_y(p, s);
 	} else {
-		y_step = piles_area.y + pile_step[p] * (piles[p].length - 1);
+		y_step = pile_card_y(p, piles[p].length - 1);
 		if (is_event_in(event, x_pile, card_width, y_step, card_height)) {
 			s = piles[p].length - 1;
 		}
@@ -403,7 +439,7 @@ function try_drag_from_foundation(event) {
 	if (f !== undefined && foundations[f].length) {
 		dragging.what = 'foundation';
 		dragging.foundation = f;
-		dragging.x_offset = pos.x - (foundations_area.x + (card_width + card_spacing) * f);
+		dragging.x_offset = pos.x - foundation_x(f);
 		dragging.y_offset = pos.y - foundations_area.y;
 	}
 
@@ -422,8 +458,8 @@ function try_drop_into_pile(event) {
 		return ACTION_TRIED;
 	}
 
-	const x = piles_area.x + (card_width + card_spacing) * p;
-	const y = piles_area.y + pile_step[p] * (piles[p].length ? piles[p].length - 1 : 0);
+	const x = pile_x(p);
+	const y = pile_card_y(p, piles[p].length ? piles[p].length - 1 : 0);
 
 	if (is_event_in(event, x, card_width, y, card_height)) {
 		if (dragging.what === 'waste') {
@@ -463,7 +499,7 @@ function try_drop_into_foundation(event) {
 
 function x_to_foundation(x) {
 	const f = Math.floor((x - foundations_area.x) / (card_width + card_spacing));
-	const max_x = foundations_area.x + (card_width + card_spacing) * f + card_width;
+	const max_x = foundation_x(f) + card_width;
 
 	if (f >= 0 && f < foundations.length && x <= max_x) {
 		return f;
@@ -472,11 +508,23 @@ function x_to_foundation(x) {
 
 function x_to_pile(x) {
 	const p = Math.floor((x - piles_area.x) / (card_width + card_spacing));
-	const max_x = piles_area.x + (card_width + card_spacing) * p + card_width;
+	const max_x = pile_x(p) + card_width;
 
 	if (p >= 0 && p < piles.length && x <= max_x) {
 		return p;
 	}
+}
+
+function foundation_x(f) {
+	return foundations_area.x + (card_width + card_spacing) * f;
+}
+
+function pile_x(p) {
+	return piles_area.x + (card_width + card_spacing) * p;
+}
+
+function pile_card_y(p, s) {
+	return piles_area.y + pile_step[p] * s;
 }
 
 function handle_movement(event) {
@@ -532,6 +580,11 @@ function recalculate_sizes() {
 	piles_area.x = card_spacing;
 	piles_area.y = card_height + card_spacing * 2;
 
+	hand_area.w = card_width;
+	hand_area.h = card_height;
+	hand_area.x = Math.round(piles_area.w / 2 - hand_area.w / 2 + piles_area.x);
+	hand_area.y = Math.round(canvas.height * 2 / 3 - hand_area.h / 2);
+
 	pile_step.forEach((_, p) => recalculate_pile_step(p));
 
 	if (!image_queue) {
@@ -546,6 +599,146 @@ function recalculate_pile_step(p) {
 	} else {
 		pile_step[p] = card_step;
 	}
+}
+
+function animate_new_game(cb) {
+	animate_collect(() => {
+		animate_shuffle(() => {
+			animate_deal(() => {
+				if (cb) {
+					cb();
+				}
+
+				draw();
+			});
+		});
+	});
+}
+
+function animate_collect(cb) {
+	let p = -1;
+	let f = -1;
+
+	for (let i = 0; i < piles.length; i++) {
+		if (piles[i].length) {
+			p = i;
+			break;
+		}
+	}
+
+	for (let i = 0; i < foundations.length; i++) {
+		if (foundations[i].length) {
+			f = i;
+			break;
+		}
+	}
+
+	if (stock.length) {
+		animating.origin_x = stock_area.x;
+		animating.origin_y = stock_area.y;
+		animating.duration = 1000;
+
+		while (stock.length) {
+			animating.cards.push(stock.pop());
+		}
+	} else if (waste.length) {
+		animating.origin_x = waste_area.x;
+		animating.origin_y = waste_area.y;
+		animating.duration = 1000;
+
+		while (waste.length) {
+			animating.cards.push(waste.pop());
+		}
+	} else if (p > -1) {
+		animating.origin_x = pile_x(p);
+		animating.origin_y = pile_card_y(p, piles[p].length);
+		animating.duration = Math.round(1000 / piles.length);
+		animating.cards.push(piles[p].pop());
+	} else if (f > -1) {
+		animating.origin_x = foundation_x(f);
+		animating.origin_y = foundations_area.y;
+		animating.duration = Math.round(1000 / foundations.length);
+		animating.cards.push(foundations[f].pop());
+	} else {
+		if (cb) {
+			cb();
+		}
+
+		window.requestAnimationFrame(draw);
+		return;
+	}
+
+	animating.start_time = +new Date;
+	animating.dest_x = hand_area.x;
+	animating.dest_y = hand_area.y;
+
+	window.requestAnimationFrame(() => {
+		animate_collect_step(() => {
+			animate_collect(cb);
+		});
+	});
+}
+
+function animate_collect_step(cb) {
+	if (animating.origin_x === animating.dest_x && animating.origin_y === animating.dest_y) {
+		while (animating.cards.length) {
+			animating.cards[animating.cards.length - 1].turned = false;
+			hand.push(animating.cards.pop());
+		}
+
+		if (cb) {
+			cb();
+		}
+
+		return;
+	}
+
+	draw();
+
+	if (hand.length > 1) {
+		ctx.drawImage(images_canvas['back_red'], hand_area.x, hand_area.y);
+	}
+
+	const image_name = animating.cards[0].turnedup ? animating.cards[0].name : 'back_red';
+	ctx.drawImage(images_canvas[image_name], animating.origin_x, animating.origin_y);
+
+	const time_factor = ((+ new Date) - animating.start_time) / animating.duration;
+
+	if (time_factor < 1) {
+		animating.origin_x = lerp(time_factor, animating.origin_x, animating.dest_x);
+		animating.origin_y = lerp(time_factor, animating.origin_y, animating.dest_y);
+	} else {
+		animating.origin_x = animating.dest_x;
+		animating.origin_y = animating.dest_y;
+	}
+
+	window.requestAnimationFrame(() => {
+		animate_collect_step(cb)
+	});
+}
+
+function animate_shuffle(cb) {
+	shuffle_hand();
+
+	if (cb) {
+		cb();
+	}
+
+	window.requestAnimationFrame(draw);
+}
+
+function animate_deal(cb) {
+	deal_cards();
+
+	if (cb) {
+		cb();
+	}
+
+	window.requestAnimationFrame(draw);
+}
+
+function lerp(norm, min, max) {
+	return (max - min) * norm + min;
 }
 
 function redraw_image(name) {
@@ -589,7 +782,7 @@ function draw_dragging() {
 
 function draw_foundations() {
 	for (let f = 0; f < foundations.length; f++) {
-		const x = foundations_area.x + (card_width + card_spacing) * f;
+		const x = foundation_x(f);
 		const i = dragging.what === 'foundation' && dragging.foundation === f
 		        ? foundations[f].length - 2
 		        : foundations[f].length - 1;
@@ -607,14 +800,14 @@ function draw_foundations() {
 
 function draw_piles() {
 	for (let p = 0; p < piles.length; p++) {
-		const x = piles_area.x + (card_width + card_spacing) * p;
+		const x = pile_x(p);
 
 		for (let s = 0; s < piles[p].length; s++) {
 			if (dragging.what === 'pile' && dragging.pile === p && dragging.step === s) {
 				break;
 			}
 
-			const y = piles_area.y + pile_step[p] * s;
+			const y = pile_card_y(p, s);
 			const card = piles[p][s];
 			const image_name = card.turnedup ? card.name : 'back_red';
 			ctx.drawImage(images_canvas[image_name], x, y);

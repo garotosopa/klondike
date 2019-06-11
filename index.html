@@ -584,7 +584,7 @@ function recalculate_sizes() {
 	hand_area.w = card_width;
 	hand_area.h = card_height;
 	hand_area.x = Math.round(piles_area.w / 2 - hand_area.w / 2 + piles_area.x);
-	hand_area.y = Math.round(canvas.height * 2 / 3 - hand_area.h / 2);
+	hand_area.y = Math.round(canvas.height - hand_area.h - card_spacing);
 
 	pile_step.forEach((_, p) => recalculate_pile_step(p));
 
@@ -616,16 +616,35 @@ function animate_new_game(cb) {
 	});
 }
 
-function animate_collect(cb) {
-	let p = -1;
-	let f = -1;
-
+function pile_with_turnedup()
+{
 	for (let i = 0; i < piles.length; i++) {
-		if (piles[i].length) {
-			p = i;
-			break;
+		if (piles[i].length && piles[i][piles[i].length - 1].turnedup) {
+			return i;
 		}
 	}
+
+	return -1;
+}
+
+function pile_with_card() {
+	for (let i = 0; i < piles.length; i++) {
+		if (piles[i].length) {
+			return i;
+		}
+	}
+
+	return -1;
+}
+
+function animate_collect(cb) {
+	let p_up = pile_with_turnedup();
+	let p = pile_with_card();
+	let f = -1;
+
+	animating.start_time = +new Date;
+	animating.dest_x = hand_area.x;
+	animating.dest_y = hand_area.y;
 
 	for (let i = 0; i < foundations.length; i++) {
 		if (foundations[i].length) {
@@ -634,7 +653,23 @@ function animate_collect(cb) {
 		}
 	}
 
-	if (stock.length) {
+	if (p_up > - 1) {
+		animating.origin_x = pile_x(p_up);
+		animating.origin_y = pile_card_y(p_up, piles[p_up].length - 1);
+		animating.cards.push(piles[p_up].pop());
+		animating.duration = 2048;
+
+		if (piles[p_up].length && piles[p_up][piles[p_up].length - 1].turnedup) {
+			animating.dest_x = animating.origin_x;
+			animating.dest_y = pile_card_y(p_up, piles[p_up].length - 1);
+		} else {
+			const other_pile = pile_with_turnedup();
+			if (other_pile > -1) {
+				animating.dest_x = pile_x(other_pile);
+				animating.dest_y = pile_card_y(other_pile, piles[other_pile].length - 1);
+			}
+		}
+	} else if (stock.length) {
 		animating.origin_x = stock_area.x;
 		animating.origin_y = stock_area.y;
 		animating.duration = 500;
@@ -650,17 +685,29 @@ function animate_collect(cb) {
 		while (waste.length) {
 			animating.cards.push(waste.pop());
 		}
-	} else if (p > -1) {
-		animating.origin_x = pile_x(p);
-		animating.origin_y = pile_card_y(p, piles[p].length);
-		animating.duration = Math.round(500 / piles.length);
-		animating.cards.push(piles[p].pop());
 	} else if (f > -1) {
 		animating.origin_x = foundation_x(f);
 		animating.origin_y = foundations_area.y;
 		animating.duration = Math.round(500 / foundations.length);
 		animating.cards.push(foundations[f].pop());
+	} else if (p > - 1) {
+		animating.origin_x = pile_x(p);
+		animating.origin_y = pile_card_y(p, piles[p].length);
+		animating.cards.push(piles[p].pop());
+
+		if (piles[p].length) {
+			animating.duration = 2048;
+			animating.dest_x = animating.origin_x;
+			animating.dest_y = pile_card_y(p, piles[p].length);
+		} else {
+			animating.duration = 2096;
+		}
 	} else {
+		while (animating.cards.length) {
+			hand.push(animating.cards.pop());
+			hand[hand.length - 1].turnedup = false;
+		}
+
 		if (cb) {
 			cb();
 		}
@@ -668,10 +715,6 @@ function animate_collect(cb) {
 		window.requestAnimationFrame(draw);
 		return;
 	}
-
-	animating.start_time = +new Date;
-	animating.dest_x = hand_area.x;
-	animating.dest_y = hand_area.y;
 
 	window.requestAnimationFrame(() => {
 		animate_collect_step(() => {
@@ -682,11 +725,6 @@ function animate_collect(cb) {
 
 function animate_collect_step(cb) {
 	if (animating.origin_x === animating.dest_x && animating.origin_y === animating.dest_y) {
-		while (animating.cards.length) {
-			hand.push(animating.cards.pop());
-			hand[hand.length - 1].turnedup = false;
-		}
-
 		if (cb) {
 			cb();
 		}

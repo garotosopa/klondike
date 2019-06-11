@@ -637,7 +637,7 @@ function animate_collect(cb) {
 	if (stock.length) {
 		animating.origin_x = stock_area.x;
 		animating.origin_y = stock_area.y;
-		animating.duration = 1000;
+		animating.duration = 500;
 
 		while (stock.length) {
 			animating.cards.push(stock.pop());
@@ -645,7 +645,7 @@ function animate_collect(cb) {
 	} else if (waste.length) {
 		animating.origin_x = waste_area.x;
 		animating.origin_y = waste_area.y;
-		animating.duration = 1000;
+		animating.duration = 500;
 
 		while (waste.length) {
 			animating.cards.push(waste.pop());
@@ -653,12 +653,12 @@ function animate_collect(cb) {
 	} else if (p > -1) {
 		animating.origin_x = pile_x(p);
 		animating.origin_y = pile_card_y(p, piles[p].length);
-		animating.duration = Math.round(1000 / piles.length);
+		animating.duration = Math.round(500 / piles.length);
 		animating.cards.push(piles[p].pop());
 	} else if (f > -1) {
 		animating.origin_x = foundation_x(f);
 		animating.origin_y = foundations_area.y;
-		animating.duration = Math.round(1000 / foundations.length);
+		animating.duration = Math.round(500 / foundations.length);
 		animating.cards.push(foundations[f].pop());
 	} else {
 		if (cb) {

@@ -106,13 +106,6 @@ window.addEventListener("resize", function () {
 	window.requestAnimationFrame(draw);
 });
 
-window.addEventListener("keydown", function (e) {
-	if (e.altKey && e.code === "KeyN") {
-		new_game();
-		window.requestAnimationFrame(draw);
-	}
-});
-
 image_names.forEach(name => {
 	images[name] = new Image();
 	images[name].src = `cards/${name}.png`;
@@ -314,6 +307,7 @@ function bind_controls() {
 	window.addEventListener("touchstart", handle_drag_event, { passive: false });
 	window.addEventListener("mouseup", handle_drop_event);
 	window.addEventListener("touchend", handle_drop_event);
+	window.addEventListener("keydown", handle_keydown);
 }
 
 function unbind_controls() {
@@ -321,6 +315,7 @@ function unbind_controls() {
 	window.removeEventListener("touchstart", handle_drag_event);
 	window.removeEventListener("mouseup", handle_drop_event);
 	window.removeEventListener("touchend", handle_drop_event);
+	window.removeEventListener("keydown", handle_keydown);
 }
 
 function event_position(event) {
@@ -340,6 +335,12 @@ function is_event_in(event, x, w, y, h) {
 
 function is_event_in_area(event, area) {
 	return is_event_in(event, area.x, area.w, area.y, area.h);
+}
+
+function handle_keydown(event) {
+	if (event.altKey && event.code === "KeyN") {
+		animate_new_game();
+	}
 }
 
 function handle_drag_event(event) {

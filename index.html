@@ -683,8 +683,8 @@ function animate_collect(cb) {
 function animate_collect_step(cb) {
 	if (animating.origin_x === animating.dest_x && animating.origin_y === animating.dest_y) {
 		while (animating.cards.length) {
-			animating.cards[animating.cards.length - 1].turned = false;
 			hand.push(animating.cards.pop());
+			hand[hand.length - 1].turnedup = false;
 		}
 
 		if (cb) {
